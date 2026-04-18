@@ -1,0 +1,930 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+  <meta name="theme-color" content="#e3000b"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+  <meta name="apple-mobile-web-app-title" content="LEGO Coleção"/>
+  <meta name="mobile-web-app-capable" content="yes"/>
+  <link rel="manifest" id="manifest-link"/>
+  <link rel="apple-touch-icon" id="apple-icon"/>
+  <title>LEGO – A minha coleção</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800;900&family=DM+Mono:wght@500&display=swap" rel="stylesheet"/>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --red:#e3000b; --yellow:#FFD700; --blue:#0057a8;
+      --bg:#f2f2f7; --surface:#fff; --border:#e4e4e4;
+      --text:#1a1a1a; --muted:#999; --muted2:#bbb;
+      --green:#1a7a3c; --green-bg:#eaf5ee; --green-border:#b2dfc1;
+      --wish:#0057a8; --wish-bg:#eaf0fb; --wish-border:#b0c8ef;
+      --shadow:0 2px 10px rgba(0,0,0,.06);
+      --tab-h:62px;
+    }
+    html,body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min-height:100vh;-webkit-tap-highlight-color:transparent;overscroll-behavior:none;}
+    .app{max-width:480px;margin:0 auto;min-height:100vh;}
+
+    /* SPLASH */
+    .splash{position:fixed;inset:0;background:var(--red);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;z-index:1000;transition:opacity .4s;}
+    .splash.hidden{opacity:0;pointer-events:none;}
+    .splash-logo{background:var(--yellow);color:#000;font-weight:900;font-size:36px;padding:8px 22px;border-radius:8px;letter-spacing:2px;}
+    .splash-spinner{width:28px;height:28px;border:3px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .8s linear infinite;}
+    .splash-text{color:rgba(255,255,255,.85);font-size:14px;font-weight:600;}
+    @keyframes spin{to{transform:rotate(360deg);}}
+
+    /* LOGIN */
+    .login-screen{position:fixed;inset:0;background:var(--red);display:none;flex-direction:column;align-items:center;justify-content:center;gap:18px;z-index:900;padding:32px;}
+    .login-screen.on{display:flex;}
+    .login-logo{background:var(--yellow);color:#000;font-weight:900;font-size:36px;padding:8px 22px;border-radius:8px;letter-spacing:2px;}
+    .login-title{color:#fff;font-size:22px;font-weight:800;text-align:center;}
+    .login-sub{color:rgba(255,255,255,.75);font-size:13px;text-align:center;line-height:1.6;max-width:300px;}
+    .login-form{width:100%;max-width:320px;display:flex;flex-direction:column;gap:10px;}
+    .login-email{width:100%;background:rgba(255,255,255,.15);border:1.5px solid rgba(255,255,255,.3);border-radius:12px;color:#fff;padding:14px 16px;font-size:16px;font-family:'DM Sans',sans-serif;outline:none;}
+    .login-email::placeholder{color:rgba(255,255,255,.5);}
+    .login-email:focus{border-color:rgba(255,255,255,.7);}
+    .login-btn{background:var(--yellow);color:#000;border:none;border-radius:12px;padding:14px;font-size:16px;font-weight:800;font-family:'DM Sans',sans-serif;cursor:pointer;transition:transform .1s;}
+    .login-btn:active{transform:scale(.97);}
+    .login-btn:disabled{opacity:.7;cursor:not-allowed;}
+    .login-sent{background:rgba(255,255,255,.15);border-radius:14px;padding:22px;text-align:center;color:#fff;width:100%;max-width:320px;display:none;}
+    .login-sent.on{display:block;}
+    .login-sent-icon{font-size:44px;margin-bottom:10px;}
+    .login-sent-title{font-size:16px;font-weight:800;margin-bottom:8px;}
+    .login-sent-sub{font-size:13px;color:rgba(255,255,255,.8);line-height:1.6;}
+    .login-error{color:#ffcccc;font-size:13px;font-weight:600;text-align:center;display:none;}
+    .login-error.on{display:block;}
+
+    /* HEADER */
+    .header{background:var(--red);padding:16px 16px 14px;position:sticky;top:0;z-index:100;box-shadow:0 4px 20px rgba(227,0,11,.35);}
+    .logo-row{display:flex;align-items:center;gap:8px;margin-bottom:12px;}
+    .logo-box{background:var(--yellow);color:#000;font-weight:900;font-size:17px;padding:3px 9px;border-radius:4px;letter-spacing:1px;}
+    .logo-text{color:#fff;font-weight:700;font-size:15px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+    .header-btns{display:flex;gap:6px;align-items:center;flex-shrink:0;}
+    .sync-dot{width:8px;height:8px;border-radius:50%;background:#4caf50;flex-shrink:0;transition:background .3s;}
+    .sync-dot.syncing{background:var(--yellow);animation:blink .8s infinite;}
+    .sync-dot.offline{background:#f44336;}
+    @keyframes blink{0%,100%{opacity:1;}50%{opacity:.3;}}
+    .hdr-btn{background:rgba(255,255,255,.2);border:none;color:rgba(255,255,255,.9);font-size:11px;font-family:'DM Sans',sans-serif;font-weight:600;padding:5px 10px;border-radius:8px;cursor:pointer;white-space:nowrap;}
+    .avatar{width:28px;height:28px;border-radius:50%;border:2px solid rgba(255,255,255,.5);object-fit:cover;cursor:pointer;}
+    .search-row{display:flex;gap:8px;}
+    #set-input{flex:1;background:rgba(255,255,255,.18);border:1.5px solid rgba(255,255,255,.28);border-radius:10px;color:#fff;padding:11px 14px;font-size:15px;font-family:'DM Sans',sans-serif;outline:none;}
+    #set-input::placeholder{color:rgba(255,255,255,.45);}
+    #set-input:focus{border-color:rgba(255,255,255,.6);}
+    #add-btn{background:var(--yellow);color:#000;border:none;border-radius:10px;padding:11px 16px;font-weight:800;font-size:14px;font-family:'DM Sans',sans-serif;cursor:pointer;transition:transform .1s;display:flex;align-items:center;justify-content:center;min-width:70px;}
+    #add-btn:active{transform:scale(.95);}
+    #add-btn:disabled{opacity:.75;cursor:not-allowed;}
+    .hint{color:rgba(255,255,255,.8);font-size:12px;font-weight:500;margin-top:8px;display:none;}
+    .hint.on{display:block;}
+    .spinner-sm{width:15px;height:15px;border:2.5px solid rgba(0,0,0,.15);border-top-color:#000;border-radius:50%;animation:spin .7s linear infinite;display:inline-block;}
+
+    /* API KEY */
+    .api-modal{position:fixed;inset:0;background:rgba(0,0,0,.5);display:none;align-items:center;justify-content:center;z-index:400;padding:20px;}
+    .api-modal.on{display:flex;}
+    .api-box{background:var(--surface);border-radius:18px;padding:24px;width:100%;max-width:420px;box-shadow:0 8px 32px rgba(0,0,0,.2);}
+    .api-title{font-size:16px;font-weight:800;margin-bottom:6px;}
+    .api-desc{font-size:13px;color:var(--muted);margin-bottom:16px;line-height:1.65;}
+    .api-desc a{color:var(--red);}
+    .api-row{display:flex;gap:8px;}
+    #api-input{flex:1;background:var(--bg);border:1.5px solid var(--border);border-radius:10px;color:var(--text);padding:11px 12px;font-size:13px;font-family:'DM Mono',monospace;outline:none;}
+    #api-btn{background:var(--red);color:#fff;border:none;border-radius:10px;padding:11px 16px;font-weight:700;font-size:13px;font-family:'DM Sans',sans-serif;cursor:pointer;white-space:nowrap;}
+
+    /* TABS */
+    .tab-bar{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:480px;background:var(--surface);border-top:1px solid var(--border);display:none;z-index:200;box-shadow:0 -2px 12px rgba(0,0,0,.08);height:var(--tab-h);}
+    .tab-bar.on{display:flex;}
+    .tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;cursor:pointer;border:none;background:none;font-family:'DM Sans',sans-serif;color:var(--muted);font-size:10px;font-weight:600;transition:color .15s;padding:8px 0;}
+    .tab.active{color:var(--red);}
+    .tab-icon{font-size:22px;line-height:1;}
+
+    /* PANELS */
+    .panel{display:none;padding:14px 12px calc(var(--tab-h) + 16px);}
+    .panel.active{display:block;}
+
+    /* STATS BAR */
+    .stats-bar{display:none;gap:8px;margin-bottom:14px;}
+    .stats-bar.on{display:flex;}
+    .sbar{flex:1;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:11px 6px;text-align:center;box-shadow:var(--shadow);}
+    .sbar-num{font-size:18px;font-weight:900;color:var(--red);line-height:1;}
+    .sbar-label{font-size:9px;color:var(--muted);margin-top:3px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;}
+
+    /* TOOLBAR */
+    .toolbar{display:none;flex-direction:column;gap:8px;margin-bottom:12px;}
+    .toolbar.on{display:flex;}
+    .toolbar-row{display:flex;gap:8px;align-items:center;}
+    .sw{position:relative;flex:1;}
+    .si{position:absolute;left:11px;top:50%;transform:translateY(-50%);font-size:14px;pointer-events:none;}
+    .fi{width:100%;background:var(--surface);border:1.5px solid var(--border);border-radius:10px;color:var(--text);padding:10px 14px 10px 34px;font-size:14px;font-family:'DM Sans',sans-serif;outline:none;}
+    .ss{background:var(--surface);border:1.5px solid var(--border);border-radius:10px;color:var(--text);padding:10px;font-size:12px;font-family:'DM Sans',sans-serif;font-weight:600;outline:none;cursor:pointer;}
+    .tb{background:var(--surface);border:1.5px solid var(--border);border-radius:10px;color:var(--text);padding:10px 13px;font-size:12px;font-weight:700;font-family:'DM Sans',sans-serif;cursor:pointer;white-space:nowrap;}
+
+    .sec-t{font-size:11px;color:var(--muted);font-weight:700;letter-spacing:.8px;text-transform:uppercase;margin-bottom:8px;display:none;}
+    .sec-t.on{display:block;}
+
+    /* EMPTY */
+    .empty{text-align:center;padding:50px 20px;}
+    .empty-icon{font-size:52px;margin-bottom:12px;display:block;}
+    .empty-title{font-size:15px;font-weight:700;color:#bbb;margin-bottom:5px;}
+    .empty-sub{font-size:13px;color:#ccc;line-height:1.6;}
+    .no-res{text-align:center;padding:30px 20px;color:var(--muted);font-size:14px;font-weight:600;}
+
+    /* CARD */
+    .card{background:var(--surface);border-radius:16px;border:1px solid var(--border);margin-bottom:10px;overflow:hidden;box-shadow:var(--shadow);animation:fadeIn .3s ease;}
+    @keyframes fadeIn{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
+
+    /* gallery */
+    .gal{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;border-bottom:1px solid var(--border);background:#f7f7f7;height:180px;}
+    .gal::-webkit-scrollbar{display:none;}
+    .gslide{scroll-snap-align:start;flex-shrink:0;width:100%;height:180px;display:flex;align-items:center;justify-content:center;font-size:40px;cursor:pointer;position:relative;}
+    .gslide img{width:100%;height:180px;object-fit:contain;padding:10px;display:block;}
+    .photo-badge{position:absolute;top:8px;right:8px;background:rgba(0,0,0,.45);color:#fff;font-size:10px;font-weight:700;padding:3px 7px;border-radius:20px;}
+    .gdots{display:flex;justify-content:center;gap:5px;padding:5px 0;background:#f7f7f7;}
+    .dot{width:6px;height:6px;border-radius:50%;background:var(--muted2);}
+    .dot.active{background:var(--red);}
+    .gadd{scroll-snap-align:start;flex-shrink:0;width:100%;height:180px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;cursor:pointer;color:var(--muted);font-size:13px;font-weight:600;background:#f0f0f0;}
+    .gadd span{font-size:36px;}
+    .gupload{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.35);color:#fff;font-size:13px;font-weight:700;gap:6px;opacity:0;transition:opacity .2s;}
+    .gslide:hover .gupload{opacity:1;}
+
+    /* card body */
+    .cb{padding:10px 12px 6px;}
+    .ctop{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:4px;}
+    .cinfo{flex:1;min-width:0;}
+    .cnum{font-size:10px;color:var(--muted2);font-weight:600;font-family:'DM Mono',monospace;margin-bottom:2px;}
+    .cname{font-size:14px;font-weight:700;line-height:1.3;color:var(--text);}
+    .dbtn{background:none;border:none;color:var(--muted2);font-size:18px;cursor:pointer;padding:2px 4px;line-height:1;}
+    .dbtn:hover{color:var(--red);}
+    .badges{display:flex;gap:4px;flex-wrap:wrap;margin:6px 0 8px;}
+    .badge{font-size:10px;padding:2px 7px;border-radius:20px;font-weight:600;background:#f0f0f0;color:#888;}
+    .badge-g{font-size:10px;padding:2px 7px;border-radius:20px;font-weight:700;background:var(--green-bg);color:var(--green);border:1px solid var(--green-border);}
+    .badge-w{font-size:10px;padding:2px 7px;border-radius:20px;font-weight:700;background:var(--wish-bg);color:var(--wish);border:1px solid var(--wish-border);}
+
+    /* prices */
+    .pgrid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:8px;}
+    .pcell{background:var(--bg);border-radius:10px;padding:7px 8px;cursor:pointer;transition:background .15s;}
+    .pcell:hover{background:#e8e8ee;}
+    .plabel{font-size:9px;color:var(--muted);font-weight:700;letter-spacing:.4px;text-transform:uppercase;margin-bottom:3px;}
+    .pval{font-size:13px;font-weight:800;color:var(--text);}
+    .pval.empty{color:var(--muted2);font-weight:500;font-size:11px;}
+    .pinput{width:100%;border:none;background:transparent;font-size:13px;font-weight:800;color:var(--text);font-family:'DM Sans',sans-serif;outline:none;padding:0;}
+    .phint{font-size:8px;color:var(--muted2);margin-top:2px;}
+    .cdate{font-size:10px;color:var(--muted2);padding-bottom:8px;}
+    .wbtn{display:block;width:100%;background:var(--green-bg);border:none;border-top:1px solid var(--green-border);color:var(--green);font-size:12px;font-weight:700;font-family:'DM Sans',sans-serif;padding:9px;text-align:center;cursor:pointer;}
+
+    /* photo uploading overlay */
+    .uploading-bar{display:none;align-items:center;gap:8px;padding:6px 12px;background:#fff8e1;border-bottom:1px solid #ffe082;font-size:12px;font-weight:600;color:#7a5c00;}
+    .uploading-bar.on{display:flex;}
+
+    /* LIGHTBOX */
+    .lb{display:none;position:fixed;inset:0;background:rgba(0,0,0,.94);z-index:500;flex-direction:column;align-items:center;justify-content:center;}
+    .lb.on{display:flex;}
+    .lb-close{position:absolute;top:16px;right:16px;background:rgba(255,255,255,.15);border:none;color:#fff;font-size:22px;width:40px;height:40px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+    .lb-name{color:rgba(255,255,255,.75);font-size:12px;font-weight:600;text-align:center;padding:8px 24px;max-width:400px;}
+    .lb-img{flex:1;display:flex;align-items:center;justify-content:center;width:100%;padding:54px 16px 10px;}
+    .lb-img img{max-width:100%;max-height:100%;object-fit:contain;border-radius:8px;}
+    .lb-emoji{font-size:80px;}
+    .lb-ctrl{display:flex;align-items:center;gap:16px;padding:8px 16px;}
+    .lb-arr{background:rgba(255,255,255,.15);border:none;color:#fff;font-size:22px;width:44px;height:44px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+    .lb-arr:disabled{opacity:.25;cursor:not-allowed;}
+    .lb-cnt{color:rgba(255,255,255,.7);font-size:13px;font-weight:600;flex:1;text-align:center;}
+    .lb-acts{display:flex;gap:10px;padding:0 16px 32px;justify-content:center;flex-wrap:wrap;}
+    .lb-add{background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;font-size:12px;font-weight:700;font-family:'DM Sans',sans-serif;padding:9px 16px;border-radius:20px;cursor:pointer;}
+    .lb-del{background:rgba(227,0,11,.35);border:1px solid rgba(227,0,11,.5);color:#fff;font-size:12px;font-weight:700;font-family:'DM Sans',sans-serif;padding:9px 16px;border-radius:20px;cursor:pointer;}
+
+    /* USER MENU */
+    .umenu{position:fixed;top:0;right:0;bottom:0;width:280px;background:var(--surface);z-index:600;box-shadow:-4px 0 20px rgba(0,0,0,.15);transform:translateX(100%);transition:transform .25s ease;display:flex;flex-direction:column;}
+    .umenu.on{transform:translateX(0);}
+    .umenu-overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:599;display:none;}
+    .umenu-overlay.on{display:block;}
+    .umenu-header{background:var(--red);padding:48px 20px 20px;}
+    .umenu-avatar{width:52px;height:52px;border-radius:50%;border:3px solid rgba(255,255,255,.5);object-fit:cover;margin-bottom:10px;}
+    .umenu-name{color:#fff;font-size:16px;font-weight:800;}
+    .umenu-email{color:rgba(255,255,255,.75);font-size:12px;margin-top:2px;}
+    .umenu-body{flex:1;padding:16px;}
+    .umenu-item{display:flex;align-items:center;gap:12px;padding:14px 12px;border-radius:12px;cursor:pointer;font-size:14px;font-weight:600;color:var(--text);border:none;background:none;width:100%;font-family:'DM Sans',sans-serif;transition:background .15s;}
+    .umenu-item:hover{background:var(--bg);}
+    .umenu-item.danger{color:var(--red);}
+    .umenu-sep{height:1px;background:var(--border);margin:8px 0;}
+
+    /* STATS PAGE */
+    .scards{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px;}
+    .scard{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px 12px;box-shadow:var(--shadow);text-align:center;}
+    .scard-num{font-size:22px;font-weight:900;color:var(--red);line-height:1;margin-bottom:4px;}
+    .scard-label{font-size:11px;color:var(--muted);font-weight:600;}
+    .cbox{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px;box-shadow:var(--shadow);margin-bottom:14px;}
+    .ctitle{font-size:13px;font-weight:700;margin-bottom:14px;}
+    .cwrap{position:relative;height:220px;}
+
+    /* TOAST */
+    .toast{position:fixed;bottom:calc(var(--tab-h) + 12px);left:50%;transform:translateX(-50%);padding:11px 20px;border-radius:30px;font-weight:700;font-size:13px;color:#fff;z-index:700;box-shadow:0 6px 24px rgba(0,0,0,.2);white-space:nowrap;max-width:90vw;text-align:center;animation:toastIn .3s ease;pointer-events:none;font-family:'DM Sans',sans-serif;}
+    @keyframes toastIn{from{opacity:0;transform:translateX(-50%) translateY(10px);}to{opacity:1;transform:translateX(-50%) translateY(0);}}
+    .tok{background:#1a7a3c;} .terr{background:#c0000a;}
+
+    #photo-input{display:none;}
+  </style>
+</head>
+<body>
+
+<!-- SPLASH -->
+<div class="splash" id="splash">
+  <div class="splash-logo">LEGO</div>
+  <div class="splash-spinner"></div>
+  <div class="splash-text" id="splash-text">A carregar…</div>
+</div>
+
+<!-- LOGIN -->
+<div class="login-screen" id="login-screen">
+  <div class="login-logo">LEGO</div>
+  <div class="login-title">A minha coleção</div>
+  <div class="login-sub">Introduz o teu email para receberes um link de acesso seguro.</div>
+  <div class="login-form" id="login-form">
+    <input class="login-email" id="login-email" type="email" placeholder="o teu email…" autocomplete="email"/>
+    <button class="login-btn" id="login-btn">Enviar link de acesso</button>
+  </div>
+  <div class="login-sent" id="login-sent">
+    <div class="login-sent-icon">📧</div>
+    <div class="login-sent-title">Email enviado!</div>
+    <div class="login-sent-sub">Abre o email no teu telemóvel e carrega no link para entrares.<br/><br/>Podes fechar este ecrã.</div>
+  </div>
+  <div class="login-error" id="login-error">Erro ao enviar email. Verifica o endereço.</div>
+</div>
+
+<!-- API KEY MODAL -->
+<div class="api-modal" id="api-modal">
+  <div class="api-box">
+    <div class="api-title">🔑 API Key da Rebrickable</div>
+    <div class="api-desc">Necessária para pesquisar sets LEGO automaticamente.<br/>Vai a <a href="https://rebrickable.com" target="_blank">rebrickable.com</a> → Settings → API Key.</div>
+    <div class="api-row">
+      <input id="api-input" type="password" placeholder="cola a tua api key…"/>
+      <button id="api-btn">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- USER MENU OVERLAY -->
+<div class="umenu-overlay" id="umenu-overlay" onclick="closeUserMenu()"></div>
+
+<!-- USER MENU -->
+<div class="umenu" id="umenu">
+  <div class="umenu-header">
+    <img class="umenu-avatar" id="umenu-avatar" src="" alt=""/>
+    <div class="umenu-name" id="umenu-name"></div>
+    <div class="umenu-email" id="umenu-email"></div>
+  </div>
+  <div class="umenu-body">
+    <button class="umenu-item" onclick="showApiModal()">🔑 Alterar API Key da Rebrickable</button>
+    <div class="umenu-sep"></div>
+    <button class="umenu-item danger" onclick="logout()">🚪 Sair</button>
+  </div>
+</div>
+
+<div class="app">
+
+  <!-- HEADER -->
+  <div class="header" id="header" style="display:none">
+    <div class="logo-row">
+      <span class="logo-box">LEGO</span>
+      <span class="logo-text" id="header-title">A minha coleção</span>
+      <div class="header-btns">
+        <div class="sync-dot" id="sync-dot"></div>
+        <img class="avatar" id="avatar" src="" alt="" onclick="openUserMenu()"/>
+      </div>
+    </div>
+    <div class="search-row">
+      <input id="set-input" type="text" inputmode="numeric" placeholder="Número do set (ex: 21051)" autocomplete="off"/>
+      <button id="add-btn">+ Add</button>
+    </div>
+    <div class="hint" id="hint">🔍 A pesquisar…</div>
+  </div>
+
+  <!-- MAIN -->
+  <div id="main" style="display:none">
+
+    <!-- COL -->
+    <div class="panel active" id="panel-col">
+      <div class="stats-bar" id="col-sbar">
+        <div class="sbar"><div class="sbar-num" id="s-sets">0</div><div class="sbar-label">Sets</div></div>
+        <div class="sbar"><div class="sbar-num" id="s-pcs">0</div><div class="sbar-label">Peças</div></div>
+        <div class="sbar"><div class="sbar-num" id="s-temas">0</div><div class="sbar-label">Temas</div></div>
+        <div class="sbar"><div class="sbar-num" id="s-paid">—</div><div class="sbar-label">Paguei €</div></div>
+      </div>
+      <div class="toolbar" id="col-tb">
+        <div class="toolbar-row">
+          <div class="sw"><span class="si">🔍</span><input class="fi" id="col-fi" type="text" placeholder="Pesquisar…" oninput="renderCol()"/></div>
+          <select class="ss" id="col-ss" onchange="renderCol()">
+            <option value="date-desc">Mais recente</option><option value="date-asc">Mais antigo</option>
+            <option value="name-asc">Nome A–Z</option><option value="name-desc">Nome Z–A</option>
+            <option value="parts-desc">Mais peças</option><option value="parts-asc">Menos peças</option>
+            <option value="year-desc">Ano ↓</option><option value="year-asc">Ano ↑</option>
+          </select>
+        </div>
+        <div class="toolbar-row"><button class="tb" onclick="exportCSV('col')">📥 Exportar CSV</button></div>
+      </div>
+      <div class="sec-t" id="col-sec"></div>
+      <div id="col-list"></div>
+    </div>
+
+    <!-- WISH -->
+    <div class="panel" id="panel-wish">
+      <div class="stats-bar" id="wish-sbar">
+        <div class="sbar"><div class="sbar-num" id="w-sets">0</div><div class="sbar-label">Sets</div></div>
+        <div class="sbar"><div class="sbar-num" id="w-pcs">0</div><div class="sbar-label">Peças</div></div>
+        <div class="sbar"><div class="sbar-num" id="w-ofic">—</div><div class="sbar-label">Valor oficial</div></div>
+      </div>
+      <div class="toolbar" id="wish-tb">
+        <div class="toolbar-row">
+          <div class="sw"><span class="si">🔍</span><input class="fi" id="wish-fi" type="text" placeholder="Pesquisar wishlist…" oninput="renderWish()"/></div>
+          <select class="ss" id="wish-ss" onchange="renderWish()">
+            <option value="date-desc">Mais recente</option><option value="date-asc">Mais antigo</option>
+            <option value="name-asc">Nome A–Z</option><option value="parts-desc">Mais peças</option>
+          </select>
+        </div>
+        <div class="toolbar-row"><button class="tb" onclick="exportCSV('wish')">📥 Exportar CSV</button></div>
+      </div>
+      <div class="sec-t" id="wish-sec"></div>
+      <div id="wish-list"></div>
+    </div>
+
+    <!-- STATS -->
+    <div class="panel" id="panel-stats">
+      <div class="scards" id="scards"></div>
+      <div class="cbox"><div class="ctitle">Sets por tema</div><div class="cwrap"><canvas id="ch-themes"></canvas></div></div>
+      <div class="cbox"><div class="ctitle">Sets por ano</div><div class="cwrap"><canvas id="ch-years"></canvas></div></div>
+      <div class="cbox"><div class="ctitle">Top 8 por peças</div><div class="cwrap"><canvas id="ch-parts"></canvas></div></div>
+    </div>
+  </div>
+
+  <!-- TAB BAR -->
+  <nav class="tab-bar" id="tab-bar">
+    <button class="tab active" id="tab-col"   onclick="switchTab('col')"><span class="tab-icon">🧱</span>Coleção</button>
+    <button class="tab"        id="tab-wish"  onclick="switchTab('wish')"><span class="tab-icon">⭐</span>Wishlist</button>
+    <button class="tab"        id="tab-stats" onclick="switchTab('stats')"><span class="tab-icon">📊</span>Estatísticas</button>
+  </nav>
+
+  <!-- LIGHTBOX -->
+  <div class="lb" id="lb">
+    <button class="lb-close" onclick="closeLB()">✕</button>
+    <div class="lb-name" id="lb-name"></div>
+    <div class="lb-img" id="lb-img"></div>
+    <div class="lb-ctrl">
+      <button class="lb-arr" id="lb-prev" onclick="lbNav(-1)">‹</button>
+      <span class="lb-cnt" id="lb-cnt"></span>
+      <button class="lb-arr" id="lb-next" onclick="lbNav(1)">›</button>
+    </div>
+    <div class="lb-acts">
+      <button class="lb-add" onclick="lbAddPhoto()">📷 Adicionar foto</button>
+      <button class="lb-del" id="lb-del" onclick="lbDelPhoto()">🗑 Remover foto</button>
+    </div>
+  </div>
+
+  <input type="file" id="photo-input" accept="image/*" capture="environment"/>
+</div>
+
+<script>
+// ── CLOUDINARY ──
+const CL_CLOUD = 'dykkcxtp0';
+const CL_PRESET = 'lego_fotos';
+
+async function uploadToCloudinary(file) {
+  const fd = new FormData();
+  fd.append('file', file);
+  fd.append('upload_preset', CL_PRESET);
+  const res = await fetch(`https://api.cloudinary.com/v1_1/${CL_CLOUD}/image/upload`, { method: 'POST', body: fd });
+  if (!res.ok) throw new Error('upload failed');
+  const data = await res.json();
+  return data.secure_url;
+}
+
+async function deleteFromCloudinary(url) {
+  // Extract public_id from URL
+  const parts = url.split('/');
+  const file = parts[parts.length - 1];
+  const publicId = 'lego_fotos/' + file.replace(/\.[^.]+$/, '');
+  // Note: deletion requires server-side signature; we'll just remove from our data
+  // The image will remain in Cloudinary but unused
+}
+
+// ── FIREBASE ──
+const fbConfig = {
+  apiKey: "AIzaSyBMWkCtYcdUFG7oU9OifMynZNo5ADtdrQc",
+  authDomain: "lego-colecao.firebaseapp.com",
+  projectId: "lego-colecao",
+  storageBucket: "lego-colecao.firebasestorage.app",
+  messagingSenderId: "966289591560",
+  appId: "1:966289591560:web:b3adde228a97a93667f0bd"
+};
+firebase.initializeApp(fbConfig);
+const auth = firebase.auth();
+const db   = firebase.firestore();
+
+// ── PWA ──
+(()=>{
+  const icon=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" rx="80" fill="#e3000b"/><text x="256" y="340" font-family="Arial Black" font-size="200" font-weight="900" text-anchor="middle" fill="#FFD700">LEGO</text></svg>`;
+  const b64='data:image/svg+xml;base64,'+btoa(icon);
+  document.getElementById('apple-icon').href=b64;
+  const m={name:'LEGO Coleção',short_name:'LEGO',start_url:location.href,display:'standalone',background_color:'#f2f2f7',theme_color:'#e3000b',icons:[{src:b64,sizes:'512x512',type:'image/svg+xml',purpose:'any maskable'}]};
+  const blob=new Blob([JSON.stringify(m)],{type:'application/manifest+json'});
+  document.getElementById('manifest-link').href=URL.createObjectURL(blob);
+})();
+
+// ── STATE ──
+let uid='', apiKey='', collection=[], wishlist=[], currentTab='col', charts={};
+let lbSetNum=null, lbList=null, lbIdx=0, lbPhotoTarget=null;
+
+// ── SYNC ──
+function sync(state){
+  const d=document.getElementById('sync-dot');
+  d.className='sync-dot'+(state==='syncing'?' syncing':state==='offline'?' offline':'');
+}
+
+// ── FIRESTORE ──
+function colRef(listName){ return db.collection('users').doc(uid).collection(listName); }
+
+async function fsLoadAll(listName){
+  try{
+    const snap=await colRef(listName).orderBy('added','desc').get();
+    return snap.docs.map(d=>({id:d.id,...d.data()}));
+  }catch(e){console.error(e);return null;}
+}
+
+async function fsSaveItem(listName, item){
+  sync('syncing');
+  try{
+    const {id,...data}=item;
+    if(id) await colRef(listName).doc(id).set(data);
+    else {
+      const ref=await colRef(listName).add(data);
+      item.id=ref.id;
+    }
+    sync('ok');
+  }catch(e){console.error(e);sync('offline');}
+}
+
+async function fsDeleteItem(listName, item){
+  sync('syncing');
+  try{
+    if(item.id) await colRef(listName).doc(item.id).delete();
+    sync('ok');
+  }catch(e){console.error(e);sync('offline');}
+}
+
+// ── AUTH ──
+async function setupUser(user) {
+  uid = user.uid;
+  document.getElementById('avatar').src = user.photoURL||'';
+  document.getElementById('umenu-avatar').src = user.photoURL||'';
+  document.getElementById('umenu-name').textContent = user.displayName||user.email||'';
+  document.getElementById('umenu-email').textContent = user.email||'';
+  apiKey = localStorage.getItem(`lego_apikey_${uid}`)||'';
+  document.getElementById('splash-text').textContent = 'A sincronizar coleção…';
+  const [colData,wishData] = await Promise.all([fsLoadAll('collection'),fsLoadAll('wishlist')]);
+  collection = colData||[]; wishlist = wishData||[];
+  sync(colData!==null?'ok':'offline');
+  hideSplash();
+  if(!apiKey){ showApiModal(); } else { showMain(); }
+}
+
+async function initAuth() {
+  document.getElementById('splash-text').textContent = 'A verificar sessão…';
+  // Check if arriving via email link
+  if(firebase.auth().isSignInWithEmailLink(window.location.href)) {
+    let email = localStorage.getItem('lego_signin_email');
+    if(!email) email = window.prompt('Confirma o teu email:');
+    try {
+      const result = await firebase.auth().signInWithEmailLink(email, window.location.href);
+      localStorage.removeItem('lego_signin_email');
+      // Clean URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+      await setupUser(result.user);
+      return;
+    } catch(e) {
+      console.error('Email link error:', e);
+      hideSplash();
+      showLogin();
+      document.getElementById('login-error').classList.add('on');
+      return;
+    }
+  }
+  // Normal auth state check
+  const unsub = auth.onAuthStateChanged(async user => {
+    unsub();
+    if(user) {
+      await setupUser(user);
+    } else {
+      hideSplash();
+      showLogin();
+    }
+  });
+}
+
+initAuth();
+
+function hideSplash(){
+  const s=document.getElementById('splash');
+  s.classList.add('hidden');
+  setTimeout(()=>s.style.display='none',400);
+}
+function showLogin(){
+  document.getElementById('login-screen').classList.add('on');
+}
+function showMain(){
+  document.getElementById('login-screen').classList.remove('on');
+  document.getElementById('header').style.display='block';
+  document.getElementById('main').style.display='block';
+  document.getElementById('tab-bar').classList.add('on');
+  renderAll();
+}
+
+// Email link sign-in
+document.getElementById('login-btn').addEventListener('click', async () => {
+  const email = document.getElementById('login-email').value.trim();
+  if(!email || !email.includes('@')) {
+    document.getElementById('login-error').classList.add('on');
+    return;
+  }
+  document.getElementById('login-error').classList.remove('on');
+  const btn = document.getElementById('login-btn');
+  btn.disabled = true;
+  btn.textContent = 'A enviar…';
+  const actionCodeSettings = {
+    url: window.location.href,
+    handleCodeInApp: true
+  };
+  try {
+    await auth.sendSignInLinkToEmail(email, actionCodeSettings);
+    localStorage.setItem('lego_signin_email', email);
+    document.getElementById('login-form').style.display = 'none';
+    document.getElementById('login-sent').classList.add('on');
+  } catch(e) {
+    console.error(e);
+    document.getElementById('login-error').classList.add('on');
+    btn.disabled = false;
+    btn.textContent = 'Enviar link de acesso';
+  }
+});
+document.getElementById('login-email').addEventListener('keydown', e => {
+  if(e.key === 'Enter') document.getElementById('login-btn').click();
+});
+
+function logout(){
+  if(!confirm('Tens a certeza que queres sair?')) return;
+  auth.signOut();
+  collection=[]; wishlist=[]; uid='';
+  closeUserMenu();
+  document.getElementById('header').style.display='none';
+  document.getElementById('main').style.display='none';
+  document.getElementById('tab-bar').classList.remove('on');
+  // Reset login form
+  document.getElementById('login-form').style.display='flex';
+  document.getElementById('login-sent').classList.remove('on');
+  document.getElementById('login-email').value='';
+  document.getElementById('login-btn').disabled=false;
+  document.getElementById('login-btn').textContent='Enviar link de acesso';
+  document.getElementById('login-error').classList.remove('on');
+  document.getElementById('login-screen').classList.add('on');
+}
+
+// ── USER MENU ──
+function openUserMenu(){ document.getElementById('umenu').classList.add('on'); document.getElementById('umenu-overlay').classList.add('on'); }
+function closeUserMenu(){ document.getElementById('umenu').classList.remove('on'); document.getElementById('umenu-overlay').classList.remove('on'); }
+
+// ── API MODAL ──
+function showApiModal(){ document.getElementById('api-modal').classList.add('on'); }
+document.getElementById('api-btn').addEventListener('click',()=>{
+  const k=document.getElementById('api-input').value.trim();
+  if(!k) return;
+  apiKey=k; localStorage.setItem(`lego_apikey_${uid}`,k);
+  document.getElementById('api-modal').classList.remove('on');
+  closeUserMenu();
+  showMain();
+  toast('✓ API key guardada!');
+});
+document.getElementById('api-input').addEventListener('keydown',e=>{if(e.key==='Enter') document.getElementById('api-btn').click();});
+
+// ── TABS ──
+function switchTab(tab){
+  currentTab=tab;
+  ['col','wish','stats'].forEach(t=>{
+    document.getElementById(`panel-${t}`).classList.toggle('active',t===tab);
+    document.getElementById(`tab-${t}`).classList.toggle('active',t===tab);
+  });
+  const titles={col:'A minha coleção',wish:'Wishlist ⭐',stats:'Estatísticas 📊'};
+  document.getElementById('header-title').textContent=titles[tab];
+  const showS=tab!=='stats';
+  document.getElementById('set-input').style.display=showS?'':'none';
+  document.getElementById('add-btn').style.display=showS?'':'none';
+  document.getElementById('set-input').placeholder=tab==='wish'?'Número do set para a wishlist…':'Número do set (ex: 21051)';
+  if(tab==='stats') renderStats();
+}
+
+// ── LOADING ──
+function setLoading(on){
+  const btn=document.getElementById('add-btn'),inp=document.getElementById('set-input');
+  btn.disabled=on; inp.disabled=on;
+  btn.innerHTML=on?'<span class="spinner-sm"></span>':'+ Add';
+  document.getElementById('hint').classList.toggle('on',on);
+}
+
+// ── ADD SET ──
+document.getElementById('set-input').addEventListener('keydown',e=>{if(e.key==='Enter') addSet();});
+document.getElementById('add-btn').addEventListener('click',addSet);
+
+async function lookupSet(num){
+  const n=num.includes('-')?num:num+'-1';
+  const res=await fetch(`https://rebrickable.com/api/v3/lego/sets/${n}/`,{headers:{'Authorization':`key ${apiKey}`}});
+  if(res.status===404) return null;
+  if(!res.ok) throw new Error('api');
+  return res.json();
+}
+
+async function addSet(){
+  const num=document.getElementById('set-input').value.trim();
+  if(!num) return;
+  const list=currentTab==='wish'?wishlist:collection;
+  const listName=currentTab==='wish'?'wishlist':'collection';
+  const listKey=currentTab==='wish'?'wish':'col';
+  if(list.find(s=>s.set_num?.replace(/-\d+$/,'')===num.replace(/-\d+$/,''))){toast('Já está na lista!',false);return;}
+  setLoading(true);
+  try{
+    const data=await lookupSet(num);
+    if(!data){toast('Set não encontrado.',false);}
+    else{
+      const item={set_num:data.set_num,name:data.name,num_parts:data.num_parts||0,year:data.year||null,theme_name:data.theme_name||null,set_img_url:data.set_img_url||null,added:new Date().toISOString(),photos:[],price_official:data.retail_price??null,price_paid:null,price_estimated:null};
+      await fsSaveItem(listName,item);
+      list.unshift(item);
+      document.getElementById('set-input').value='';
+      renderAll();
+      toast(`✓ "${data.name}" adicionado!`);
+    }
+  }catch(e){toast('Erro na ligação. Verifica a API key.',false);}
+  setLoading(false);
+}
+
+// ── REMOVE ──
+async function removeItem(listKey,setNum){
+  const list=listKey==='col'?collection:wishlist;
+  const listName=listKey==='col'?'collection':'wishlist';
+  const idx=list.findIndex(s=>s.set_num===setNum);
+  if(idx===-1) return;
+  if(!confirm(`Remover "${list[idx].name}"?`)) return;
+  const item=list.splice(idx,1)[0];
+  await fsDeleteItem(listName,item);
+  renderAll();
+  toast('Set removido.',false);
+}
+
+// ── MOVE WISH→COL ──
+async function moveToCol(setNum){
+  const idx=wishlist.findIndex(s=>s.set_num===setNum);
+  if(idx===-1) return;
+  const item=wishlist.splice(idx,1)[0];
+  await fsDeleteItem('wishlist',item);
+  const newItem={...item,id:null,added:new Date().toISOString()};
+  delete newItem.id;
+  if(!collection.find(s=>s.set_num===setNum)){
+    await fsSaveItem('collection',newItem);
+    collection.unshift(newItem);
+  }
+  renderAll();
+  toast(`✓ "${item.name}" movido para a coleção!`);
+}
+
+// ── PRICE EDIT ──
+function startPrice(cell,listKey,setNum,field,current){
+  cell.onclick=null;
+  const lbl=cell.querySelector('.plabel').outerHTML;
+  cell.innerHTML=`${lbl}<input class="pinput" type="number" step="0.01" min="0" placeholder="0.00" value="${current??''}" autofocus/>`;
+  const inp=cell.querySelector('input');
+  inp.focus(); inp.select();
+  const save_=async()=>{
+    const list=listKey==='col'?collection:wishlist;
+    const listName=listKey==='col'?'collection':'wishlist';
+    const item=list.find(s=>s.set_num===setNum);
+    if(item){const n=parseFloat(inp.value.replace(',','.')); item[field]=isNaN(n)||inp.value===''?null:n; await fsSaveItem(listName,item);}
+    renderAll();
+  };
+  inp.addEventListener('blur',save_);
+  inp.addEventListener('keydown',e=>{if(e.key==='Enter') inp.blur();});
+}
+
+// ── PHOTO UPLOAD ──
+document.getElementById('photo-input').addEventListener('change', async function(){
+  if(!this.files[0]||!lbPhotoTarget) return;
+  const {setNum,listKey,mode}=lbPhotoTarget;
+  lbPhotoTarget=null;
+  const file=this.files[0];
+  this.value='';
+
+  toast('📷 A enviar foto…');
+  try{
+    const url=await uploadToCloudinary(file);
+    const list=listKey==='col'?collection:wishlist;
+    const listName=listKey==='col'?'collection':'wishlist';
+    const item=list.find(s=>s.set_num===setNum);
+    if(item){
+      if(!item.photos) item.photos=[];
+      item.photos.push(url);
+      await fsSaveItem(listName,item);
+      if(mode==='lb'){ lbIdx=getAllImgs(item).length-1; renderLB(); }
+      renderAll();
+      toast('✓ Foto guardada na cloud!');
+    }
+  }catch(e){toast('Erro ao enviar foto.',false);}
+});
+
+function addPhotoCard(setNum,listKey){lbPhotoTarget={setNum,listKey,mode:'card'}; document.getElementById('photo-input').click();}
+
+// ── LIGHTBOX ──
+function getAllImgs(item){ const a=[]; if(item.set_img_url) a.push(item.set_img_url); if(item.photos) a.push(...item.photos); return a; }
+function openLB(setNum,listKey,idx){
+  lbSetNum=setNum; lbList=listKey; lbIdx=idx||0;
+  document.getElementById('lb').classList.add('on');
+  renderLB();
+}
+function closeLB(){ document.getElementById('lb').classList.remove('on'); }
+function renderLB(){
+  const list=lbList==='col'?collection:wishlist;
+  const item=list.find(s=>s.set_num===lbSetNum);
+  if(!item) return;
+  const imgs=getAllImgs(item);
+  lbIdx=Math.max(0,Math.min(lbIdx,imgs.length-1));
+  document.getElementById('lb-name').textContent=item.name;
+  const wrap=document.getElementById('lb-img');
+  wrap.innerHTML=imgs[lbIdx]?`<img src="${imgs[lbIdx]}" alt="${item.name}" onerror="this.parentNode.innerHTML='<span class=lb-emoji>🧱</span>'">`:'<span class="lb-emoji">🧱</span>';
+  document.getElementById('lb-cnt').textContent=`${lbIdx+1} / ${imgs.length}`;
+  document.getElementById('lb-prev').disabled=lbIdx===0;
+  document.getElementById('lb-next').disabled=lbIdx===imgs.length-1;
+  const isOfficial=lbIdx===0&&!!item.set_img_url;
+  document.getElementById('lb-del').style.display=isOfficial?'none':'inline-block';
+}
+function lbNav(dir){lbIdx+=dir; renderLB();}
+function lbAddPhoto(){ lbPhotoTarget={setNum:lbSetNum,listKey:lbList,mode:'lb'}; document.getElementById('photo-input').click(); }
+async function lbDelPhoto(){
+  const list=lbList==='col'?collection:wishlist;
+  const listName=lbList==='col'?'collection':'wishlist';
+  const item=list.find(s=>s.set_num===lbSetNum);
+  if(!item||!item.photos) return;
+  const photoIdx=item.set_img_url?lbIdx-1:lbIdx;
+  if(photoIdx<0||photoIdx>=item.photos.length) return;
+  item.photos.splice(photoIdx,1);
+  await fsSaveItem(listName,item);
+  lbIdx=Math.max(0,lbIdx-1);
+  renderLB(); renderAll();
+  toast('Foto removida.');
+}
+
+// ── SORT ──
+function sorted(list,srt,q){
+  let r=q?list.filter(s=>(s.name||'').toLowerCase().includes(q)||(s.set_num||'').toLowerCase().includes(q)||(s.theme_name||'').toLowerCase().includes(q)||String(s.year||'').includes(q)):[...list];
+  r.sort((a,b)=>{switch(srt){
+    case 'date-asc': return new Date(a.added)-new Date(b.added);
+    case 'date-desc':return new Date(b.added)-new Date(a.added);
+    case 'name-asc': return (a.name||'').localeCompare(b.name||'','pt');
+    case 'name-desc':return (b.name||'').localeCompare(a.name||'','pt');
+    case 'parts-desc':return (b.num_parts||0)-(a.num_parts||0);
+    case 'parts-asc': return (a.num_parts||0)-(b.num_parts||0);
+    case 'year-desc': return (b.year||0)-(a.year||0);
+    case 'year-asc':  return (a.year||0)-(b.year||0);
+    default: return 0;
+  }}); return r;
+}
+function fmtDate(iso){return new Date(iso).toLocaleDateString('pt-PT',{day:'numeric',month:'long',year:'numeric'});}
+function fmtEur(v){return v!=null?parseFloat(v).toLocaleString('pt-PT',{minimumFractionDigits:2,maximumFractionDigits:2})+' €':null;}
+
+// ── CARD ──
+function cardHTML(s,listKey,isWish){
+  const imgs=getAllImgs(s);
+  let slides=imgs.map((src,i)=>`<div class="gslide" onclick="openLB('${s.set_num}','${listKey}',${i})"><img src="${src}" onerror="this.parentNode.innerHTML='🧱'"/>${i>0?`<div class="photo-badge">📷 Foto ${i}</div>`:''}</div>`).join('');
+  slides+=`<div class="gadd" onclick="addPhotoCard('${s.set_num}','${listKey}')"><span>📷</span>Adicionar foto</div>`;
+  const dots=imgs.length>1?`<div class="gdots">${imgs.map((_,i)=>`<div class="dot${i===0?' active':''}"></div>`).join('')}</div>`:'';
+  const of=fmtEur(s.price_official), pa=fmtEur(s.price_paid), es=fmtEur(s.price_estimated);
+  return `<div class="card">
+    <div class="gal">${slides}</div>${dots}
+    <div class="cb">
+      <div class="ctop">
+        <div class="cinfo"><div class="cnum">${s.set_num}</div><div class="cname">${s.name}</div></div>
+        <button class="dbtn" onclick="removeItem('${listKey}','${s.set_num}')">✕</button>
+      </div>
+      <div class="badges">
+        ${isWish?`<span class="badge-w">⭐ Wishlist</span>`:`<span class="badge-g">✓ Na coleção</span>`}
+        ${s.num_parts?`<span class="badge">${s.num_parts.toLocaleString('pt-PT')} peças</span>`:''}
+        ${s.theme_name?`<span class="badge">${s.theme_name}</span>`:''}
+        ${s.year?`<span class="badge">${s.year}</span>`:''}
+      </div>
+      <div class="pgrid">
+        <div class="pcell" onclick="startPrice(this,'${listKey}','${s.set_num}','price_official','${s.price_official??''}')">
+          <div class="plabel">Oficial LEGO</div><div class="pval ${!of?'empty':''}">${of||'Toca p/ editar'}</div><div class="phint">Toca para editar</div>
+        </div>
+        <div class="pcell" onclick="startPrice(this,'${listKey}','${s.set_num}','price_paid','${s.price_paid??''}')">
+          <div class="plabel">Paguei</div><div class="pval ${!pa?'empty':''}">${pa||'Toca p/ editar'}</div><div class="phint">Toca para editar</div>
+        </div>
+        <div class="pcell" onclick="startPrice(this,'${listKey}','${s.set_num}','price_estimated','${s.price_estimated??''}')">
+          <div class="plabel">Estimado</div><div class="pval ${!es?'empty':''}">${es||'Toca p/ editar'}</div><div class="phint">Toca para editar</div>
+        </div>
+      </div>
+      <div class="cdate">Adicionado: ${fmtDate(s.added)}</div>
+    </div>
+    ${isWish?`<button class="wbtn" onclick="moveToCol('${s.set_num}')">✓ Mover para a coleção</button>`:''}
+  </div>`;
+}
+
+// ── RENDERS ──
+function renderCol(){
+  const q=document.getElementById('col-fi').value.toLowerCase().trim();
+  const srt=document.getElementById('col-ss').value;
+  const list=sorted(collection,srt,q);
+  const tp=collection.reduce((a,s)=>a+(s.num_parts||0),0);
+  const th=new Set(collection.map(s=>s.theme_name).filter(Boolean)).size;
+  const tp2=collection.reduce((a,s)=>a+(s.price_paid||0),0);
+  document.getElementById('s-sets').textContent=collection.length;
+  document.getElementById('s-pcs').textContent=tp.toLocaleString('pt-PT');
+  document.getElementById('s-temas').textContent=th;
+  document.getElementById('s-paid').textContent=tp2>0?tp2.toLocaleString('pt-PT',{maximumFractionDigits:0})+'€':'—';
+  document.getElementById('col-sbar').classList.toggle('on',collection.length>0);
+  document.getElementById('col-tb').classList.toggle('on',collection.length>0);
+  const sec=document.getElementById('col-sec'); sec.classList.toggle('on',collection.length>0);
+  sec.textContent=`${collection.length} set${collection.length!==1?'s':''} na coleção`;
+  const el=document.getElementById('col-list');
+  if(!collection.length) el.innerHTML=`<div class="empty"><span class="empty-icon">🧱</span><div class="empty-title">Coleção vazia</div><div class="empty-sub">Introduz o número de um set LEGO<br/>para o adicionar à coleção</div></div>`;
+  else if(!list.length) el.innerHTML=`<div class="no-res">Nenhum resultado para "${q}"</div>`;
+  else el.innerHTML=list.map(s=>cardHTML(s,'col',false)).join('');
+}
+
+function renderWish(){
+  const q=document.getElementById('wish-fi').value.toLowerCase().trim();
+  const srt=document.getElementById('wish-ss').value;
+  const list=sorted(wishlist,srt,q);
+  const tp=wishlist.reduce((a,s)=>a+(s.num_parts||0),0);
+  const to=wishlist.reduce((a,s)=>a+(s.price_official||0),0);
+  document.getElementById('w-sets').textContent=wishlist.length;
+  document.getElementById('w-pcs').textContent=tp.toLocaleString('pt-PT');
+  document.getElementById('w-ofic').textContent=to>0?to.toLocaleString('pt-PT',{maximumFractionDigits:0})+'€':'—';
+  document.getElementById('wish-sbar').classList.toggle('on',wishlist.length>0);
+  document.getElementById('wish-tb').classList.toggle('on',wishlist.length>0);
+  const sec=document.getElementById('wish-sec'); sec.classList.toggle('on',wishlist.length>0);
+  sec.textContent=`${wishlist.length} set${wishlist.length!==1?'s':''} na wishlist`;
+  const el=document.getElementById('wish-list');
+  if(!wishlist.length) el.innerHTML=`<div class="empty"><span class="empty-icon">⭐</span><div class="empty-title">Wishlist vazia</div><div class="empty-sub">Adiciona sets que queres comprar</div></div>`;
+  else if(!list.length) el.innerHTML=`<div class="no-res">Nenhum resultado para "${q}"</div>`;
+  else el.innerHTML=list.map(s=>cardHTML(s,'wish',true)).join('');
+}
+
+function renderStats(){
+  const C=['#e3000b','#0057a8','#FFD700','#1a7a3c','#ff6b35','#9b59b6','#e91e8c','#00bcd4','#ff9800','#607d8b'];
+  if(!collection.length){document.getElementById('scards').innerHTML=`<div class="empty" style="grid-column:1/-1"><span class="empty-icon">📊</span><div class="empty-title">Sem dados ainda</div></div>`;return;}
+  const tp=collection.reduce((a,s)=>a+(s.num_parts||0),0);
+  const tpaid=collection.reduce((a,s)=>a+(s.price_paid||0),0);
+  const tofic=collection.reduce((a,s)=>a+(s.price_official||0),0);
+  const avg=Math.round(tp/collection.length);
+  document.getElementById('scards').innerHTML=`
+    <div class="scard"><div class="scard-num">${collection.length}</div><div class="scard-label">Sets na coleção</div></div>
+    <div class="scard"><div class="scard-num">${tp.toLocaleString('pt-PT')}</div><div class="scard-label">Total de peças</div></div>
+    <div class="scard"><div class="scard-num">${avg.toLocaleString('pt-PT')}</div><div class="scard-label">Média de peças</div></div>
+    <div class="scard"><div class="scard-num">${tpaid>0?tpaid.toLocaleString('pt-PT',{maximumFractionDigits:0})+'€':'—'}</div><div class="scard-label">Total paguei</div></div>
+    <div class="scard"><div class="scard-num">${tofic>0?tofic.toLocaleString('pt-PT',{maximumFractionDigits:0})+'€':'—'}</div><div class="scard-label">Valor oficial total</div></div>
+    <div class="scard"><div class="scard-num">${wishlist.length}</div><div class="scard-label">Sets na wishlist</div></div>`;
+  const tm={};collection.forEach(s=>{if(s.theme_name)tm[s.theme_name]=(tm[s.theme_name]||0)+1;});
+  const tL=Object.keys(tm).sort((a,b)=>tm[b]-tm[a]);
+  drawChart('ch-themes','doughnut',tL,tL.map(k=>tm[k]),C);
+  const ym={};collection.forEach(s=>{if(s.year)ym[s.year]=(ym[s.year]||0)+1;});
+  const yL=Object.keys(ym).sort();
+  drawChart('ch-years','bar',yL,yL.map(k=>ym[k]),'#e3000b');
+  const top=[...collection].filter(s=>s.num_parts).sort((a,b)=>b.num_parts-a.num_parts).slice(0,8);
+  drawChart('ch-parts','bar',top.map(s=>s.name.length>18?s.name.slice(0,16)+'…':s.name),top.map(s=>s.num_parts),'#0057a8');
+}
+
+function drawChart(id,type,labels,data,colors){
+  const c=document.getElementById(id); if(!c) return;
+  if(charts[id]) charts[id].destroy();
+  const isArr=Array.isArray(colors);
+  charts[id]=new Chart(c,{type,data:{labels,datasets:[{data,backgroundColor:isArr?colors:colors,borderColor:type==='doughnut'?'#fff':(isArr?colors:colors),borderWidth:type==='doughnut'?2:0,borderRadius:type==='bar'?6:0}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:type==='doughnut',position:'bottom',labels:{font:{family:'DM Sans',size:11},boxWidth:12,padding:10}}},
+    scales:type==='bar'?{x:{ticks:{font:{family:'DM Sans',size:10},maxRotation:labels.length>5?35:0},grid:{display:false}},y:{ticks:{font:{family:'DM Sans',size:10}},grid:{color:'#f0f0f0'},beginAtZero:true}}:{}}});
+}
+
+function renderAll(){ renderCol(); renderWish(); if(currentTab==='stats') renderStats(); }
+
+// ── EXPORT ──
+function exportCSV(listKey){
+  const list=listKey==='col'?collection:wishlist; if(!list.length) return;
+  const h=['Set Num','Nome','Peças','Tema','Ano','Oficial €','Paguei €','Estimado €','Data'];
+  const rows=list.map(s=>[s.set_num,`"${(s.name||'').replace(/"/g,'""')}"`,s.num_parts||'',`"${(s.theme_name||'').replace(/"/g,'""')}"`,s.year||'',s.price_official!=null?parseFloat(s.price_official).toFixed(2):'',s.price_paid!=null?s.price_paid.toFixed(2):'',s.price_estimated!=null?s.price_estimated.toFixed(2):'',new Date(s.added).toLocaleDateString('pt-PT')].join(','));
+  const csv=[h.join(','),...rows].join('\n');
+  const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a'); a.href=url; a.download=`lego-${listKey}-${new Date().toISOString().slice(0,10)}.csv`; a.click();
+  URL.revokeObjectURL(url); toast('✓ CSV exportado!');
+}
+
+// ── TOAST ──
+function toast(msg,ok=true){
+  const el=document.createElement('div');
+  el.className=`toast ${ok?'tok':'terr'}`; el.textContent=msg;
+  document.body.appendChild(el); setTimeout(()=>el.remove(),3200);
+}
+</script>
+</body>
+</html>
