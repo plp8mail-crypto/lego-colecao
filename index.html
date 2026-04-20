@@ -523,7 +523,10 @@
         </div>
         <div class="api-fields-list" id="fields-rb"></div>
         <div class="api-key-row">
-          <input class="api-key-input" id="key-rb" type="password" placeholder="API key da Rebrickable…"/>
+          <div style="display:flex;gap:6px;align-items:center;">
+              <input class="api-key-input" id="key-rb" type="text" placeholder="API key da Rebrickable…" style="flex:1;"/>
+              <button class="api-save-btn" onclick="toggleKeyVisibility('key-rb',this)" style="padding:8px 10px;font-size:11px;">👁</button>
+            </div>
           <button class="api-save-btn" onclick="saveApiKey('rb')">Guardar</button>
         </div>
         <div class="api-desc-sm">→ <a href="https://rebrickable.com/api/" target="_blank">rebrickable.com</a> → Settings → API Key</div>
@@ -540,7 +543,10 @@
           </div>
           <div class="api-fields-list" id="fields-bs"></div>
           <div class="api-key-row">
-            <input class="api-key-input" id="key-bs" type="password" placeholder="API key da Brickset…"/>
+            <div style="display:flex;gap:6px;align-items:center;">
+                <input class="api-key-input" id="key-bs" type="text" placeholder="API key da Brickset…" style="flex:1;"/>
+                <button class="api-save-btn" onclick="toggleKeyVisibility('key-bs',this)" style="padding:8px 10px;font-size:11px;">👁</button>
+              </div>
             <button class="api-save-btn" onclick="saveApiKey('bs')">Guardar</button>
           </div>
           <div class="api-desc-sm">→ <a href="https://brickset.com/tools/webservices/requestkey" target="_blank">brickset.com</a> → Request API Key</div>
@@ -958,6 +964,18 @@ function saveApiConfig(){
   localStorage.setItem('lego_apiconfig', data); // generic fallback for next login
 }
 
+function toggleKeyVisibility(inputId, btn){
+  const inp = document.getElementById(inputId);
+  if(!inp) return;
+  if(inp.type === 'text'){
+    inp.type = 'password';
+    btn.textContent = '👁';
+  } else {
+    inp.type = 'text';
+    btn.textContent = '🔒';
+  }
+}
+
 function saveBsFunctionUrl(){
   const val = document.getElementById('bs-fn-url').value.trim();
   const st = document.getElementById('bs-fn-status');
@@ -1151,9 +1169,10 @@ async function testApi(api){
       const proxyNames=['Firebase Function','directo','corsproxy.io','allorigins','codetabs','thingproxy'];
       const proxyResults=[];
       const bsCheck=`https://brickset.com/api/v3.asmx/checkKey?apiKey=${encodeURIComponent(apiConfig.bs.key)}`;
+      const _fnUrl2 = localStorage.getItem('lego_bs_function_url')||'';
       const _fnUrl = localStorage.getItem('lego_bs_function_url')||'';
       const proxyFns=[
-        async()=>{if(!_fnUrl)return null;const u=new URL(bsCheck);const m=u.pathname.split('/').pop();const r=await fetch(`${_fnUrl}?apiKey=${encodeURIComponent(apiConfig.bs.key)}&method=${m}&params=${encodeURIComponent('{}')}`);return r.ok?r.text():null;},
+        async()=>{if(!_fnUrl2)return null;const r=await fetch(`${_fnUrl2}?apiKey=${encodeURIComponent(apiConfig.bs.key)}&method=checkKey&params=${encodeURIComponent('{}')}`);return r.ok?r.text():null;},
         async()=>{const r=await fetch(bsCheck);return r.ok?r.text():null;},
         async()=>{const r=await fetch('https://corsproxy.io/?'+encodeURIComponent(bsCheck));return r.ok?r.text():null;},
         async()=>{const r=await fetch('https://api.allorigins.win/get?url='+encodeURIComponent(bsCheck));if(!r.ok)return null;const j=await r.json();return j?.contents||null;},
