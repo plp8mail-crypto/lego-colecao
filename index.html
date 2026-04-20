@@ -51,6 +51,10 @@
     .login-btn{background:var(--yellow);color:#000;border:none;border-radius:12px;padding:14px;font-size:16px;font-weight:800;font-family:'DM Sans',sans-serif;cursor:pointer;transition:transform .1s;}
     .login-btn:active{transform:scale(.97);}
     .login-btn:disabled{opacity:.7;cursor:not-allowed;}
+    .login-password{width:100%;background:rgba(255,255,255,.15);border:1.5px solid rgba(255,255,255,.3);border-radius:12px;color:#fff;padding:14px 16px;font-size:16px;font-family:'DM Sans',sans-serif;outline:none;}
+    .login-password::placeholder{color:rgba(255,255,255,.5);}
+    .login-password:focus{border-color:rgba(255,255,255,.7);}
+    .login-toggle{background:none;border:none;color:rgba(255,255,255,.7);font-size:12px;font-family:'DM Sans',sans-serif;cursor:pointer;text-decoration:underline;text-align:center;}
     .login-sent{background:rgba(255,255,255,.15);border-radius:14px;padding:22px;text-align:center;color:#fff;width:100%;max-width:320px;display:none;}
     .login-sent.on{display:block;}
     .login-sent-icon{font-size:44px;margin-bottom:10px;}
@@ -322,17 +326,19 @@
 <div class="login-screen" id="login-screen">
   <div class="login-logo">LEGO</div>
   <div class="login-title">A minha coleção</div>
-  <div class="login-sub">Introduz o teu email para receberes um link de acesso seguro.</div>
+  <div class="login-sub" id="login-sub">Entra com o teu email e senha.</div>
   <div class="login-form" id="login-form">
     <input class="login-email" id="login-email" type="email" placeholder="o teu email…" autocomplete="email"/>
-    <button class="login-btn" id="login-btn">Enviar link de acesso</button>
+    <input class="login-password" id="login-password" type="password" placeholder="senha…" autocomplete="current-password"/>
+    <button class="login-btn" id="login-btn">Entrar</button>
+    <button class="login-toggle" id="login-toggle" onclick="toggleLoginMode()">Criar conta nova</button>
   </div>
   <div class="login-sent" id="login-sent">
-    <div class="login-sent-icon">📧</div>
-    <div class="login-sent-title">Email enviado!</div>
-    <div class="login-sent-sub">Abre o email no teu telemóvel e carrega no link para entrares.<br/><br/>Podes fechar este ecrã.</div>
+    <div class="login-sent-icon">✅</div>
+    <div class="login-sent-title">Conta criada!</div>
+    <div class="login-sent-sub">A entrar automaticamente…</div>
   </div>
-  <div class="login-error" id="login-error">Erro ao enviar email. Verifica o endereço.</div>
+  <div class="login-error" id="login-error">Email ou senha incorrectos.</div>
 </div>
 
 <!-- FIRST RUN MODAL -->
@@ -768,27 +774,7 @@ async function initAuth() {
     errEl.classList.add('on');
   }, 8000);
 
-  // Check if arriving via email magic link
-  if(firebase.auth().isSignInWithEmailLink(window.location.href)) {
-    clearTimeout(authTimeout);
-    let email = localStorage.getItem('lego_signin_email');
-    if(!email) email = window.prompt('Confirma o teu email:');
-    try {
-      const result = await firebase.auth().signInWithEmailLink(email, window.location.href);
-      localStorage.removeItem('lego_signin_email');
-      window.history.replaceState({}, document.title, window.location.pathname);
-      await setupUser(result.user);
-      return;
-    } catch(e) {
-      console.error('Email link error:', e);
-      hideSplash();
-      showLogin();
-      const errEl = document.getElementById('login-error');
-      errEl.textContent = 'Erro no link de acesso. Tenta novamente.';
-      errEl.classList.add('on');
-      return;
-    }
-  }
+  // No magic link needed — using email/password auth
 
   // Normal auth state check
   const unsub = auth.onAuthStateChanged(async user => {
@@ -821,33 +807,61 @@ function showMain(){
 }
 
 // Email link sign-in
+let loginMode = 'signin'; // 'signin' or 'register'
+
+function toggleLoginMode(){
+  loginMode = loginMode === 'signin' ? 'register' : 'signin';
+  document.getElementById('login-btn').textContent = loginMode === 'signin' ? 'Entrar' : 'Criar conta';
+  document.getElementById('login-toggle').textContent = loginMode === 'signin' ? 'Criar conta nova' : 'Já tenho conta';
+  document.getElementById('login-sub').textContent = loginMode === 'signin' ? 'Entra com o teu email e senha.' : 'Cria a tua conta com email e senha.';
+  document.getElementById('login-error').classList.remove('on');
+}
+
 document.getElementById('login-btn').addEventListener('click', async () => {
   const email = document.getElementById('login-email').value.trim();
+  const password = document.getElementById('login-password').value;
+  const errEl = document.getElementById('login-error');
   if(!email || !email.includes('@')) {
-    document.getElementById('login-error').classList.add('on');
-    return;
+    errEl.textContent = 'Introduz um email válido.';
+    errEl.classList.add('on'); return;
   }
-  document.getElementById('login-error').classList.remove('on');
+  if(!password || password.length < 6) {
+    errEl.textContent = 'A senha deve ter pelo menos 6 caracteres.';
+    errEl.classList.add('on'); return;
+  }
+  errEl.classList.remove('on');
   const btn = document.getElementById('login-btn');
   btn.disabled = true;
-  btn.textContent = 'A enviar…';
-  const actionCodeSettings = {
-    url: APP_URL,
-    handleCodeInApp: true
-  };
+  btn.textContent = loginMode === 'signin' ? 'A entrar…' : 'A criar conta…';
   try {
-    await auth.sendSignInLinkToEmail(email, actionCodeSettings);
-    localStorage.setItem('lego_signin_email', email);
-    document.getElementById('login-form').style.display = 'none';
-    document.getElementById('login-sent').classList.add('on');
+    let result;
+    if(loginMode === 'register') {
+      result = await auth.createUserWithEmailAndPassword(email, password);
+    } else {
+      result = await auth.signInWithEmailAndPassword(email, password);
+    }
+    await setupUser(result.user);
   } catch(e) {
     console.error(e);
-    document.getElementById('login-error').classList.add('on');
+    const msgs = {
+      'auth/user-not-found': 'Email não encontrado. Cria uma conta primeiro.',
+      'auth/wrong-password': 'Senha incorrecta.',
+      'auth/email-already-in-use': 'Este email já tem conta. Usa "Já tenho conta".',
+      'auth/weak-password': 'A senha é demasiado fraca (mínimo 6 caracteres).',
+      'auth/invalid-email': 'Email inválido.',
+      'auth/invalid-credential': 'Email ou senha incorrectos.',
+      'auth/too-many-requests': 'Demasiadas tentativas. Aguarda alguns minutos.',
+    };
+    errEl.textContent = msgs[e.code] || ('Erro: ' + e.message);
+    errEl.classList.add('on');
     btn.disabled = false;
-    btn.textContent = 'Enviar link de acesso';
+    btn.textContent = loginMode === 'signin' ? 'Entrar' : 'Criar conta';
   }
 });
 document.getElementById('login-email').addEventListener('keydown', e => {
+  if(e.key === 'Enter') document.getElementById('login-password').focus();
+});
+document.getElementById('login-password').addEventListener('keydown', e => {
   if(e.key === 'Enter') document.getElementById('login-btn').click();
 });
 
@@ -863,9 +877,12 @@ function logout(){
   document.getElementById('login-form').style.display='flex';
   document.getElementById('login-sent').classList.remove('on');
   document.getElementById('login-email').value='';
+  document.getElementById('login-password').value='';
   document.getElementById('login-btn').disabled=false;
-  document.getElementById('login-btn').textContent='Enviar link de acesso';
+  document.getElementById('login-btn').textContent='Entrar';
+  document.getElementById('login-toggle').textContent='Criar conta nova';
   document.getElementById('login-error').classList.remove('on');
+  loginMode='signin';
   document.getElementById('login-screen').classList.add('on');
 }
 
