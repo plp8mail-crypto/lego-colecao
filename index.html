@@ -62,6 +62,20 @@
     .login-sent-sub{font-size:13px;color:rgba(255,255,255,.8);line-height:1.6;}
     .login-error{color:#ffcccc;font-size:13px;font-weight:600;text-align:center;display:none;}
     .login-error.on{display:block;}
+    /* Password recovery & change modal */
+    .pw-modal{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center;z-index:800;padding:20px;}
+    .pw-modal.on{display:flex;}
+    .pw-box{background:var(--surface);border-radius:18px;padding:24px;width:100%;max-width:400px;box-shadow:0 8px 32px rgba(0,0,0,.2);}
+    .pw-title{font-size:16px;font-weight:800;margin-bottom:6px;}
+    .pw-sub{font-size:13px;color:var(--muted);margin-bottom:16px;line-height:1.5;}
+    .pw-input{width:100%;background:var(--bg);border:1.5px solid var(--border);border-radius:10px;color:var(--text);padding:12px 14px;font-size:14px;font-family:'DM Sans',sans-serif;outline:none;margin-bottom:10px;}
+    .pw-input:focus{border-color:var(--red);}
+    .pw-btn{width:100%;background:var(--red);color:#fff;border:none;border-radius:10px;padding:13px;font-size:14px;font-weight:800;font-family:'DM Sans',sans-serif;cursor:pointer;margin-bottom:8px;}
+    .pw-cancel{width:100%;background:none;border:1.5px solid var(--border);border-radius:10px;padding:12px;font-size:13px;font-weight:700;font-family:'DM Sans',sans-serif;cursor:pointer;color:var(--muted);}
+    .pw-ok{color:var(--green);font-size:13px;font-weight:700;text-align:center;display:none;margin-top:8px;}
+    .pw-ok.on{display:block;}
+    .pw-err{color:var(--red);font-size:12px;font-weight:600;text-align:center;display:none;margin-top:4px;}
+    .pw-err.on{display:block;}
 
     /* HEADER */
     .header{background:var(--red);padding:16px 16px 14px;position:sticky;top:0;z-index:100;box-shadow:0 4px 20px rgba(227,0,11,.35);}
@@ -332,6 +346,7 @@
     <input class="login-password" id="login-password" type="password" placeholder="senha…" autocomplete="current-password"/>
     <button class="login-btn" id="login-btn">Entrar</button>
     <button class="login-toggle" id="login-toggle" onclick="toggleLoginMode()">Criar conta nova</button>
+    <button class="login-toggle" id="login-forgot" onclick="openForgotPassword()" style="margin-top:-4px;">Esqueci a senha</button>
   </div>
   <div class="login-sent" id="login-sent">
     <div class="login-sent-icon">✅</div>
@@ -363,6 +378,8 @@
   </div>
   <div class="umenu-body">
     <button class="umenu-item" onclick="switchTab('settings');closeUserMenu();">&#9881; Definições e APIs</button>
+    <div class="umenu-sep"></div>
+    <button class="umenu-item" onclick="openChangePassword();closeUserMenu();">🔒 Alterar senha</button>
     <div class="umenu-sep"></div>
     <button class="umenu-item danger" onclick="logout()">🚪 Sair</button>
   </div>
@@ -576,6 +593,34 @@
   </div>
 
   <input type="file" id="photo-input" accept="image/*" capture="environment"/>
+</div>
+
+<!-- FORGOT PASSWORD MODAL -->
+<div class="pw-modal" id="forgot-modal">
+  <div class="pw-box">
+    <div class="pw-title">🔑 Recuperar senha</div>
+    <div class="pw-sub">Introduz o teu email. Vais receber um link para definires uma nova senha.</div>
+    <input class="pw-input" id="forgot-email" type="email" placeholder="o teu email…" autocomplete="email"/>
+    <div class="pw-err" id="forgot-err"></div>
+    <div class="pw-ok" id="forgot-ok">✓ Email enviado! Verifica a tua caixa de entrada.</div>
+    <button class="pw-btn" onclick="sendForgotPassword()">Enviar email de recuperação</button>
+    <button class="pw-cancel" onclick="closeForgotModal()">Cancelar</button>
+  </div>
+</div>
+
+<!-- CHANGE PASSWORD MODAL -->
+<div class="pw-modal" id="change-pw-modal">
+  <div class="pw-box">
+    <div class="pw-title">🔒 Alterar senha</div>
+    <div class="pw-sub">Introduce a senha actual e a nova senha.</div>
+    <input class="pw-input" id="cpw-current" type="password" placeholder="Senha actual…"/>
+    <input class="pw-input" id="cpw-new" type="password" placeholder="Nova senha (mín. 6 caracteres)…"/>
+    <input class="pw-input" id="cpw-confirm" type="password" placeholder="Confirmar nova senha…"/>
+    <div class="pw-err" id="cpw-err"></div>
+    <div class="pw-ok" id="cpw-ok">✓ Senha alterada com sucesso!</div>
+    <button class="pw-btn" onclick="doChangePassword()">Alterar senha</button>
+    <button class="pw-cancel" onclick="closeChangePwModal()">Cancelar</button>
+  </div>
 </div>
 
 <!-- UPDATING OVERLAY -->
@@ -814,6 +859,7 @@ function toggleLoginMode(){
   document.getElementById('login-btn').textContent = loginMode === 'signin' ? 'Entrar' : 'Criar conta';
   document.getElementById('login-toggle').textContent = loginMode === 'signin' ? 'Criar conta nova' : 'Já tenho conta';
   document.getElementById('login-sub').textContent = loginMode === 'signin' ? 'Entra com o teu email e senha.' : 'Cria a tua conta com email e senha.';
+  document.getElementById('login-forgot').style.display = loginMode === 'signin' ? '' : 'none';
   document.getElementById('login-error').classList.remove('on');
 }
 
@@ -1829,6 +1875,88 @@ tr:hover td{background:#fafafa;}
   const url=URL.createObjectURL(blob);
   const a=document.createElement('a'); a.href=url; a.download=`lego-${listKey}-${new Date().toISOString().slice(0,10)}.html`; a.click();
   URL.revokeObjectURL(url); toast('✓ HTML exportado!');
+}
+
+// ── PASSWORD RECOVERY ──
+function openForgotPassword(){
+  const emailVal = document.getElementById('login-email').value.trim();
+  document.getElementById('forgot-email').value = emailVal;
+  document.getElementById('forgot-err').classList.remove('on');
+  document.getElementById('forgot-ok').classList.remove('on');
+  document.getElementById('forgot-modal').classList.add('on');
+}
+function closeForgotModal(){
+  document.getElementById('forgot-modal').classList.remove('on');
+}
+async function sendForgotPassword(){
+  const email = document.getElementById('forgot-email').value.trim();
+  const errEl = document.getElementById('forgot-err');
+  const okEl  = document.getElementById('forgot-ok');
+  errEl.classList.remove('on'); okEl.classList.remove('on');
+  if(!email || !email.includes('@')){
+    errEl.textContent = 'Introduz um email válido.';
+    errEl.classList.add('on'); return;
+  }
+  try{
+    await auth.sendPasswordResetEmail(email);
+    okEl.classList.add('on');
+    setTimeout(()=>closeForgotModal(), 3000);
+  }catch(e){
+    const msgs = {
+      'auth/user-not-found': 'Não existe conta com este email.',
+      'auth/invalid-email': 'Email inválido.',
+      'auth/too-many-requests': 'Demasiadas tentativas. Aguarda alguns minutos.',
+    };
+    errEl.textContent = msgs[e.code] || ('Erro: ' + e.message);
+    errEl.classList.add('on');
+  }
+}
+document.getElementById('forgot-email').addEventListener('keydown', e=>{
+  if(e.key==='Enter') sendForgotPassword();
+});
+
+// ── CHANGE PASSWORD ──
+function openChangePassword(){
+  document.getElementById('cpw-current').value='';
+  document.getElementById('cpw-new').value='';
+  document.getElementById('cpw-confirm').value='';
+  document.getElementById('cpw-err').classList.remove('on');
+  document.getElementById('cpw-ok').classList.remove('on');
+  document.getElementById('change-pw-modal').classList.add('on');
+}
+function closeChangePwModal(){
+  document.getElementById('change-pw-modal').classList.remove('on');
+}
+async function doChangePassword(){
+  const current = document.getElementById('cpw-current').value;
+  const newPw   = document.getElementById('cpw-new').value;
+  const confirm = document.getElementById('cpw-confirm').value;
+  const errEl   = document.getElementById('cpw-err');
+  const okEl    = document.getElementById('cpw-ok');
+  errEl.classList.remove('on'); okEl.classList.remove('on');
+  if(!current){ errEl.textContent='Introduz a senha actual.'; errEl.classList.add('on'); return; }
+  if(newPw.length < 6){ errEl.textContent='A nova senha deve ter pelo menos 6 caracteres.'; errEl.classList.add('on'); return; }
+  if(newPw !== confirm){ errEl.textContent='As senhas não coincidem.'; errEl.classList.add('on'); return; }
+  try{
+    // Re-authenticate first (required by Firebase before sensitive operations)
+    const user = auth.currentUser;
+    const credential = firebase.auth.EmailAuthProvider.credential(user.email, current);
+    await user.reauthenticateWithCredential(credential);
+    await user.updatePassword(newPw);
+    okEl.classList.add('on');
+    setTimeout(()=>closeChangePwModal(), 2500);
+    toast('✓ Senha alterada!');
+  }catch(e){
+    const msgs = {
+      'auth/wrong-password': 'Senha actual incorrecta.',
+      'auth/weak-password': 'A nova senha é demasiado fraca.',
+      'auth/too-many-requests': 'Demasiadas tentativas. Aguarda alguns minutos.',
+      'auth/requires-recent-login': 'Sessão expirada. Sai e volta a entrar.',
+      'auth/invalid-credential': 'Senha actual incorrecta.',
+    };
+    errEl.textContent = msgs[e.code] || ('Erro: ' + e.message);
+    errEl.classList.add('on');
+  }
 }
 
 // ── TOAST ──
