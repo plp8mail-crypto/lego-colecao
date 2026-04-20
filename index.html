@@ -524,7 +524,7 @@
         <div class="api-fields-list" id="fields-rb"></div>
         <div class="api-key-row">
           <div style="display:flex;gap:6px;align-items:center;width:100%;">
-              <input class="api-key-input" id="key-rb" type="text" placeholder="API key da Rebrickable…" style="flex:1;min-width:0;"/>
+              <input class="api-key-input" id="key-rb" type="password" placeholder="API key da Rebrickable…" style="flex:1;min-width:0;"/>
               <button class="api-save-btn" onclick="toggleKeyVisibility('key-rb',this)" style="padding:8px 10px;font-size:11px;flex-shrink:0;">👁</button>
             </div>
           <button class="api-save-btn" onclick="saveApiKey('rb')">Guardar</button>
@@ -544,7 +544,7 @@
           <div class="api-fields-list" id="fields-bs"></div>
           <div class="api-key-row">
             <div style="display:flex;gap:6px;align-items:center;width:100%;">
-                <input class="api-key-input" id="key-bs" type="text" placeholder="API key da Brickset…" style="flex:1;min-width:0;"/>
+                <input class="api-key-input" id="key-bs" type="password" placeholder="API key da Brickset…" style="flex:1;min-width:0;"/>
                 <button class="api-save-btn" onclick="toggleKeyVisibility('key-bs',this)" style="padding:8px 10px;font-size:11px;flex-shrink:0;">👁</button>
               </div>
             <button class="api-save-btn" onclick="saveApiKey('bs')">Guardar</button>
@@ -1429,9 +1429,21 @@ async function fetchViaCorsProxy(targetUrl, timeoutMs=12000){
 async function lookupBrickset(num){
   if(!apiConfig.bs.enabled || !apiConfig.bs.key) return null;
   const setNum = num.replace(/-\d+$/,'');
-  // Note: Brickset accepts both JSON (double quotes) and Python-dict (single quotes) format
-  const targetUrl = `https://brickset.com/api/v3.asmx/getSets?apiKey=${encodeURIComponent(apiConfig.bs.key)}&userHash=&params=${encodeURIComponent(JSON.stringify({setNumber:setNum,pageSize:1}))}`;
 
+  // ── CACHE: tenta ler do Firestore antes de chamar a API ──
+  if(uid){
+    try{
+      const cacheDoc = await db.collection('users').doc(uid)
+                               .collection('cache_brickset').doc(setNum).get();
+      if(cacheDoc.exists){
+        console.log('[Brickset] cache hit:', setNum);
+        return cacheDoc.data();
+      }
+    }catch(e){ console.warn('[Brickset] cache read error:', e); }
+  }
+
+  // ── API: cache miss — vai buscar à Brickset ──
+  const targetUrl = `https://brickset.com/api/v3.asmx/getSets?apiKey=${encodeURIComponent(apiConfig.bs.key)}&userHash=&params=${encodeURIComponent(JSON.stringify({setNumber:setNum,pageSize:1}))}`;
   const text = await fetchViaCorsProxy(targetUrl);
   if(!text) return null;
 
@@ -1448,13 +1460,23 @@ async function lookupBrickset(num){
                 || s.LEGOCom?.US?.dateLastAvailable
                 || s.LEGOCom?.UK?.dateLastAvailable
                 || s.LEGOCom?.DE?.dateLastAvailable || null;
-  return { _src:'bs', set_num:s.number+'-1', name:s.name, num_parts:s.pieces||0,
+
+  const result = { _src:'bs', set_num:s.number+'-1', name:s.name, num_parts:s.pieces||0,
            year:s.year||null, theme_name:s.theme||null, subtheme:s.subtheme||null,
            category:s.category||null, set_img_url:s.image?.imageURL||null,
            price_retail:retail, exit_date:exitDate?exitDate.slice(0,10):null };
-}
 
-// Also expose a checkKey test for the Brickset test button
+  // ── CACHE: guarda resultado para próxima vez ──
+  if(uid){
+    try{
+      await db.collection('users').doc(uid)
+              .collection('cache_brickset').doc(setNum).set(result);
+      console.log('[Brickset] cached:', setNum);
+    }catch(e){ console.warn('[Brickset] cache write error:', e); }
+  }
+
+  return result;
+}
 async function checkBricksetKey(){
   if(!apiConfig.bs.key) return false;
   const targetUrl = `https://brickset.com/api/v3.asmx/checkKey?apiKey=${encodeURIComponent(apiConfig.bs.key)}`;
@@ -1869,11 +1891,11 @@ function cardHTML(s,listKey,isWish){
 
       <div class="badges">
         ${isWish?`<span class="badge-w">⭐ Wishlist</span>`:`<span class="badge-g">✓ Na coleção</span>`}
-        ${themeDisplay?`<span class="badge" style="cursor:pointer;" onclick="startBadge(this,'${listKey}','${s.set_num}','theme_name','${themeEsc}')">${themeDisplay}</span>`:''}
-        ${s.category?`<span class="badge" style="cursor:pointer;background:#eef3fb;color:#0057a8;" onclick="startBadge(this,'${listKey}','${s.set_num}','category','${catEsc}')">${s.category}</span>`:''}
+        <span class="badge" style="cursor:pointer;" onclick="startBadge(this,'${listKey}','${s.set_num}','theme_name','${themeEsc}')">${themeDisplay||'—'}</span>
+        <span class="badge" style="cursor:pointer;background:#eef3fb;color:#0057a8;" onclick="startBadge(this,'${listKey}','${s.set_num}','category','${catEsc}')">${s.category||'—'}</span>
         ${s.num_parts?`<span class="badge">${s.num_parts.toLocaleString('pt-PT')} peças</span>`:''}
         ${yearDisplay?`<span class="badge">${yearDisplay}</span>`:''}
-        ${s.exit_date?`<span class="badge" style="cursor:pointer;background:#ffeaea;color:#c0000a;" onclick="startBadgeDate(this,'${listKey}','${s.set_num}','exit_date','${s.exit_date||''}')">${exitDisplay}</span>`:''}
+        <span class="badge" style="cursor:pointer;background:#ffeaea;color:#c0000a;" onclick="startBadgeDate(this,'${listKey}','${s.set_num}','exit_date','${s.exit_date||''}')">${exitDisplay||'—'}</span>
       </div>
 
       <div style="display:flex;gap:5px;margin-bottom:4px;align-items:stretch;">
