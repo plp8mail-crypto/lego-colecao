@@ -544,6 +544,14 @@
             <button class="api-save-btn" onclick="saveApiKey('bs')">Guardar</button>
           </div>
           <div class="api-desc-sm">→ <a href="https://brickset.com/tools/webservices/requestkey" target="_blank">brickset.com</a> → Request API Key</div>
+          <div class="api-desc-sm" style="margin-top:8px;background:#e8f4fd;border-radius:8px;padding:8px 10px;font-size:11px;line-height:1.6;">
+            🔧 <strong>Proxy Firebase (recomendado):</strong> após fazer deploy da Cloud Function, cola aqui o URL para evitar bloqueios CORS/Cloudflare.<br>
+            <div style="display:flex;gap:6px;margin-top:6px;align-items:center;">
+              <input id="bs-fn-url" type="url" class="api-key-input" style="font-size:11px;flex:1;" placeholder="https://us-central1-lego-colecao.cloudfunctions.net/bricksetProxy"/>
+              <button class="api-save-btn" onclick="saveBsFunctionUrl()">Guardar</button>
+            </div>
+            <div id="bs-fn-status" style="margin-top:4px;font-size:11px;color:var(--green);"></div>
+          </div>
         </div>
 
         <!-- BRICKLINK -->
@@ -950,6 +958,25 @@ function saveApiConfig(){
   localStorage.setItem('lego_apiconfig', data); // generic fallback for next login
 }
 
+function saveBsFunctionUrl(){
+  const val = document.getElementById('bs-fn-url').value.trim();
+  const st = document.getElementById('bs-fn-status');
+  if(!val){
+    localStorage.removeItem('lego_bs_function_url');
+    st.textContent='URL removido — a usar proxies públicos.'; st.style.color='var(--muted)';
+    toast('URL da função removido.');
+    return;
+  }
+  if(!val.startsWith('https://')){
+    st.textContent='✗ O URL deve começar com https://'; st.style.color='var(--red)'; return;
+  }
+  localStorage.setItem('lego_bs_function_url', val);
+  st.textContent='✓ URL guardado! A Brickset irá usar esta função como proxy.'; st.style.color='var(--green)';
+  toast('✓ URL da função guardado!');
+  // Reload BRICKSET_FUNCTION_URL constant
+  window.location.reload();
+}
+
 function saveAppUrl(){
   const val = document.getElementById('app-url-input').value.trim();
   const statusEl = document.getElementById('app-url-status');
@@ -972,6 +999,16 @@ function saveAppUrl(){
 }
 
 function loadSettingsUI(){
+  // Brickset Function URL
+  const bsFnInput = document.getElementById('bs-fn-url');
+  const bsFnStatus = document.getElementById('bs-fn-status');
+  if(bsFnInput){
+    const savedFn = localStorage.getItem('lego_bs_function_url');
+    bsFnInput.value = savedFn || '';
+    if(savedFn){ bsFnStatus.textContent='✓ Proxy configurado: ' + savedFn.slice(0,50)+'…'; bsFnStatus.style.color='var(--green)'; }
+    else { bsFnStatus.textContent='Não configurado — a usar proxies públicos (menos fiável).'; bsFnStatus.style.color='var(--muted)'; }
+  }
+
   // URL config
   const savedUrl = localStorage.getItem('lego_app_url');
   const urlInput = document.getElementById('app-url-input');
@@ -1301,38 +1338,55 @@ async function lookupRebrickable(num){
   }catch(e){ return null; }
 }
 
-// ── BRICKSET CORS PROXY HELPER ──
-// Brickset API does not send CORS headers — we try multiple public proxies
-async function fetchViaCorsProxy(targetUrl, timeoutMs=10000){
-  const proxies = [
-    // Direct (no proxy) — works if Brickset ever adds CORS headers
-    { name:'direct', fn: async () => {
-      const r = await fetch(targetUrl);
+// ── BRICKSET CORS PROXY ──
+// The Brickset API does not support CORS — we use a Firebase Cloud Function as proxy.
+// Setup instructions: see the firebase-function/ folder in the project.
+// If the function URL is not configured, falls back to public proxies (less reliable).
+
+// Set this after deploying your Firebase Function:
+// Firebase Console → Functions → bricksetProxy → copy the URL
+// Format: https://us-central1-YOUR-PROJECT.cloudfunctions.net/bricksetProxy
+const BRICKSET_FUNCTION_URL = localStorage.getItem('lego_bs_function_url') || '';
+
+async function fetchViaCorsProxy(targetUrl, timeoutMs=12000){
+  const proxies = [];
+
+  // 1. Firebase Cloud Function (own proxy — most reliable, no Cloudflare WAF issues)
+  if(BRICKSET_FUNCTION_URL){
+    proxies.push({ name:'Firebase Function', fn: async () => {
+      // Extract params from targetUrl and call our function
+      const u = new URL(targetUrl);
+      const apiKey = u.searchParams.get('apiKey');
+      const params = u.searchParams.get('params');
+      // Determine which method from the URL path
+      const method = u.pathname.split('/').pop();
+      const fnUrl = `${BRICKSET_FUNCTION_URL}?apiKey=${encodeURIComponent(apiKey)}&method=${method}&params=${encodeURIComponent(params||'{}')}`;
+      const r = await fetch(fnUrl);
       return r.ok ? r.text() : null;
-    }},
-    // corsproxy.io — prepends proxy to URL, returns raw response
+    }});
+  }
+
+  // 2. Public CORS proxies as fallback
+  proxies.push(
     { name:'corsproxy.io', fn: async () => {
       const r = await fetch('https://corsproxy.io/?' + encodeURIComponent(targetUrl));
       return r.ok ? r.text() : null;
     }},
-    // allorigins.win — wraps response in JSON envelope
     { name:'allorigins', fn: async () => {
       const r = await fetch('https://api.allorigins.win/get?url=' + encodeURIComponent(targetUrl));
       if(!r.ok) return null;
       const j = await r.json();
       return j?.contents || null;
     }},
-    // corsproxy.io raw
     { name:'codetabs', fn: async () => {
       const r = await fetch('https://api.codetabs.com/v1/proxy/?quest=' + encodeURIComponent(targetUrl));
       return r.ok ? r.text() : null;
     }},
-    // thingproxy
     { name:'thingproxy', fn: async () => {
       const r = await fetch('https://thingproxy.freeboard.io/fetch/' + targetUrl);
       return r.ok ? r.text() : null;
-    }},
-  ];
+    }}
+  );
 
   for(const proxy of proxies){
     try{
