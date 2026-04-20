@@ -1045,6 +1045,7 @@ function loadSettingsUI(){
   if(apiConfig.rb.key){
     document.getElementById('status-rb').textContent = '✓ API key configurada';
     document.getElementById('status-rb').className = 'api-status ok';
+    document.getElementById('key-rb').placeholder = '••••' + apiConfig.rb.key.slice(-6) + ' (guardada)';
   } else {
     document.getElementById('status-rb').textContent = '⚠️ Sem chave — API não configurada';
     document.getElementById('status-rb').className = 'api-status err';
@@ -1054,6 +1055,7 @@ function loadSettingsUI(){
   if(apiConfig.bs.key){
     document.getElementById('status-bs').textContent = '✓ API key configurada';
     document.getElementById('status-bs').className = 'api-status ok';
+    document.getElementById('key-bs').placeholder = '••••' + apiConfig.bs.key.slice(-6) + ' (guardada)';
   } else {
     document.getElementById('status-bs').textContent = '⚠️ Sem chave — API não configurada';
     document.getElementById('status-bs').className = 'api-status err';
