@@ -346,7 +346,7 @@
     <input class="login-password" id="login-password" type="password" placeholder="senha…" autocomplete="current-password"/>
     <button class="login-btn" id="login-btn">Entrar</button>
     <button class="login-toggle" id="login-toggle" onclick="toggleLoginMode()">Criar conta nova</button>
-    <button class="login-toggle" id="login-forgot" onclick="openForgotPassword()" style="margin-top:-4px;">Esqueci a senha</button>
+    <button class="login-toggle" id="login-forgot" onclick="openForgotPassword()" style="margin-top:8px;">Esqueci a senha</button>
   </div>
   <div class="login-sent" id="login-sent">
     <div class="login-sent-icon">✅</div>
@@ -600,9 +600,13 @@
   <div class="pw-box">
     <div class="pw-title">🔑 Recuperar senha</div>
     <div class="pw-sub">Introduz o teu email. Vais receber um link para definires uma nova senha.</div>
+    <div id="forgot-url-warning" style="display:none;background:#fff8e1;border:1px solid #ffe082;border-radius:8px;padding:10px 12px;font-size:11px;color:#7a5c00;margin-bottom:10px;line-height:1.5;">
+      ⚠️ Para o link de recuperação funcionar, configura primeiro o <strong>URL da aplicação</strong> nas Definições → 🌐 URL da aplicação.<br>
+      O URL deve ser: <code style="font-size:10px;">https://plp8mail-crypto.github.io/lego-colecao-vO.html</code>
+    </div>
     <input class="pw-input" id="forgot-email" type="email" placeholder="o teu email…" autocomplete="email"/>
     <div class="pw-err" id="forgot-err"></div>
-    <div class="pw-ok" id="forgot-ok">✓ Email enviado! Verifica a tua caixa de entrada.</div>
+    <div class="pw-ok" id="forgot-ok">✓ Email enviado! Verifica a tua caixa de entrada e clica no link.</div>
     <button class="pw-btn" onclick="sendForgotPassword()">Enviar email de recuperação</button>
     <button class="pw-cancel" onclick="closeForgotModal()">Cancelar</button>
   </div>
@@ -1883,6 +1887,12 @@ function openForgotPassword(){
   document.getElementById('forgot-email').value = emailVal;
   document.getElementById('forgot-err').classList.remove('on');
   document.getElementById('forgot-ok').classList.remove('on');
+  // Warn if URL not configured
+  const urlWarning = document.getElementById('forgot-url-warning');
+  if(urlWarning){
+    const savedUrl = localStorage.getItem('lego_app_url');
+    urlWarning.style.display = savedUrl ? 'none' : 'block';
+  }
   document.getElementById('forgot-modal').classList.add('on');
 }
 function closeForgotModal(){
@@ -1898,7 +1908,11 @@ async function sendForgotPassword(){
     errEl.classList.add('on'); return;
   }
   try{
-    await auth.sendPasswordResetEmail(email);
+    const actionCodeSettings = {
+      url: APP_URL,
+      handleCodeInApp: false
+    };
+    await auth.sendPasswordResetEmail(email, actionCodeSettings);
     okEl.classList.add('on');
     setTimeout(()=>closeForgotModal(), 3000);
   }catch(e){
