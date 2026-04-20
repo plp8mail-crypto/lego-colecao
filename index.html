@@ -1113,7 +1113,7 @@ async function testApi(api){
     else if(api==='bl') result=await lookupBricklink('21051');
     if(!result){
       let errMsg='✗ Sem resposta — ';
-      if(api==='bs') errMsg+='verifica se a chave é válida em brickset.com. A API pode demorar alguns segundos.';
+      if(api==='bs') errMsg+='verifica se a chave está correcta em brickset.com. Se a chave for válida, pode ser um bloqueio de rede (CORS) — tenta adicionar um set para testar.';
       else if(api==='rb') errMsg+='verifica a chave em rebrickable.com → Settings → API.';
       else errMsg+='verifica as 4 credenciais OAuth do Bricklink.';
       statusEl.textContent=errMsg;statusEl.className='api-status err';return;
@@ -1270,17 +1270,14 @@ async function lookupBrickset(num){
   if(!apiConfig.bs.enabled || !apiConfig.bs.key) return null;
   const setNum = num.replace(/-\d+$/,'');
   try{
-    // Brickset v3: GET with query string — avoids CORS preflight
+    // Brickset v3: plain GET with NO headers — any custom header triggers CORS preflight which Brickset blocks
     const qs = `apiKey=${encodeURIComponent(apiConfig.bs.key)}&userHash=&params=${encodeURIComponent(JSON.stringify({setNumber:setNum,pageSize:1}))}`;
-    const res = await fetch(`https://brickset.com/api/v3.asmx/getSets?${qs}`, {
-      method: 'GET',
-      headers: { 'Accept': 'application/json' }
-    });
+    const res = await fetch(`https://brickset.com/api/v3.asmx/getSets?${qs}`);
     if(!res.ok) return null;
     const text = await res.text();
     let d;
     try { d = JSON.parse(text); } catch(e){ return null; }
-    if(d.status==='error') return null;
+    if(!d || d.status==='error') return null;
     const s = d.sets?.[0]; if(!s) return null;
     const retail = {};
     if(s.LEGOCom?.US?.retailPrice) retail.US = s.LEGOCom.US.retailPrice;
