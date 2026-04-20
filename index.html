@@ -407,7 +407,9 @@
             <option value="year-desc">Ano ↓</option><option value="year-asc">Ano ↑</option>
           </select>
         </div>
-        <div class="toolbar-row"><button class="tb" onclick="exportCSV('col')" style="display:none"></button></div>
+        <div class="toolbar-row">
+          <button class="tb" style="background:#e8f0fe;color:#1a56db;border-color:#c3d4f7;font-size:11px;" onclick="manualRefreshAll('col')">🔄 Actualizar dados das APIs</button>
+        </div>
       </div>
       <div class="sec-t" id="col-sec"></div>
       <div id="col-list"></div>
@@ -428,7 +430,9 @@
             <option value="name-asc">Nome A–Z</option><option value="parts-desc">Mais peças</option>
           </select>
         </div>
-        <div class="toolbar-row"><button class="tb" onclick="exportCSV('wish')" style="display:none"></button></div>
+        <div class="toolbar-row">
+          <button class="tb" style="background:#e8f0fe;color:#1a56db;border-color:#c3d4f7;font-size:11px;" onclick="manualRefreshAll('wish')">🔄 Actualizar dados das APIs</button>
+        </div>
       </div>
       <div class="sec-t" id="wish-sec"></div>
       <div id="wish-list"></div>
@@ -733,23 +737,13 @@ async function setupUser(user) {
   document.getElementById('splash-text').textContent = 'A sincronizar coleção…';
   const [colData,wishData] = await Promise.all([fsLoadAll('collection'),fsLoadAll('wishlist')]);
   collection = colData||[]; wishlist = wishData||[];
-  // Migrate legacy currency: US → € for existing items that never had currency set intentionally
-  // We migrate only if currency==='US' AND price_paid is null (i.e. no purchase recorded — safe to assume it's the old default)
-  // More broadly: migrate all that have currency==='US' since the old code defaulted to 'US' and the intent is always €
-  let needsSave = false;
+  // Migrate legacy currency US → €
   [...collection, ...wishlist].forEach(s => {
-    if(!s.currency || s.currency === 'US') {
-      s.currency = '€';
-      needsSave = true;
-    }
+    if(!s.currency || s.currency === 'US') s.currency = '€';
   });
-  if(needsSave){
-    // Save silently in background — don't block UI
-    Promise.all([
-      ...collection.filter(s=>s.currency==='€'&&s.id).map(s=>fsSaveItem('collection',s)),
-      ...wishlist.filter(s=>s.currency==='€'&&s.id).map(s=>fsSaveItem('wishlist',s))
-    ]).catch(()=>{});
-  }
+
+  // Background refresh: for sets missing subtheme/category/exit_date, re-fetch from APIs silently
+  setTimeout(()=>refreshMissingFields(), 2000);
   sync(colData!==null?'ok':'offline');
   hideSplash();
 
@@ -1124,6 +1118,41 @@ function setLoading(on){
 document.getElementById('set-input').addEventListener('keydown',e=>{if(e.key==='Enter') addSet();});
 document.getElementById('add-btn').addEventListener('click',addSet);
 
+// ── REFRESH MISSING FIELDS ──
+// Re-fetches subtheme, category, exit_date for sets that don't have them yet
+async function refreshMissingFields(){
+  const hasApi = apiConfig.rb.key || apiConfig.bs.key || apiConfig.bl.consumerKey;
+  if(!hasApi) return;
+  const allLists = [{list:collection, name:'collection'}, {list:wishlist, name:'wishlist'}];
+  for(const {list, name} of allLists){
+    for(const s of list){
+      const needsRefresh = (s.subtheme === undefined || s.subtheme === null) &&
+                           (s.category === undefined || s.category === null) &&
+                           (s.exit_date === undefined || s.exit_date === null);
+      if(!needsRefresh) continue;
+      try{
+        const numBase = (s.set_num||'').replace(/-\d+$/,'');
+        const bs = await lookupBrickset(numBase);
+        if(!bs) continue;
+        let changed = false;
+        if(bs.subtheme  && !s.subtheme)  { s.subtheme  = bs.subtheme;  changed = true; }
+        if(bs.category  && !s.category)  { s.category  = bs.category;  changed = true; }
+        if(bs.exit_date && !s.exit_date) { s.exit_date = bs.exit_date; changed = true; }
+        // Also update theme_name to be just the theme (not combined), so cardHTML can combine
+        if(bs.theme_name && s.theme_name && s.theme_name.includes(' - ')){
+          // Already combined from old code — split it back
+          const parts = s.theme_name.split(' - ');
+          s.theme_name = parts[0]; s.subtheme = parts.slice(1).join(' - '); changed = true;
+        } else if(bs.theme_name && !s.theme_name){
+          s.theme_name = bs.theme_name; changed = true;
+        }
+        if(changed) await fsSaveItem(name, s);
+      }catch(e){ /* silent */ }
+    }
+  }
+  renderAll();
+}
+
 // ── MULTI-API LOOKUP — with live feedback ──
 
 function apiFeedback(msg, type='info'){
@@ -1376,6 +1405,46 @@ async function changeCurrency(setNum,listKey,val){
   const list=listKey==='col'?collection:wishlist, listName=listKey==='col'?'collection':'wishlist';
   const item=list.find(s=>s.set_num===setNum);
   if(item){ item.currency=val; await fsSaveItem(listName,item); renderAll(); }
+}
+
+// ── MANUAL REFRESH ALL FROM APIs ──
+async function manualRefreshAll(listKey){
+  const list = listKey==='col'?collection:wishlist;
+  const listName = listKey==='col'?'collection':'wishlist';
+  if(!list.length){ toast('Sem sets para actualizar.',false); return; }
+  const hasApi = apiConfig.rb.key || apiConfig.bs.key || apiConfig.bl.consumerKey;
+  if(!hasApi){ toast('Configura pelo menos uma API nas Definições.',false); return; }
+  const ov=document.getElementById('updating-overlay');
+  const msg=document.getElementById('updating-msg');
+  ov.classList.add('on');
+  let updated=0;
+  for(let i=0;i<list.length;i++){
+    const s=list[i];
+    msg.textContent=`A actualizar ${i+1}/${list.length}: ${s.name}…`;
+    try{
+      const numBase=(s.set_num||'').replace(/-\d+$/,'');
+      const bs=await lookupBrickset(numBase);
+      const rb=await lookupRebrickable(numBase);
+      let changed=false;
+      if(rb){
+        if(rb.name&&rb.name!==s.name){ s.name=rb.name; changed=true; }
+        if(rb.num_parts&&rb.num_parts!==s.num_parts){ s.num_parts=rb.num_parts; changed=true; }
+        if(rb.set_img_url&&!s.set_img_url){ s.set_img_url=rb.set_img_url; changed=true; }
+        if(rb.theme_name&&!s.theme_name){ s.theme_name=rb.theme_name; changed=true; }
+      }
+      if(bs){
+        if(bs.theme_name){ s.theme_name=bs.theme_name; changed=true; }
+        if(bs.subtheme!==undefined){ s.subtheme=bs.subtheme||null; changed=true; }
+        if(bs.category!==undefined){ s.category=bs.category||null; changed=true; }
+        if(bs.exit_date){ s.exit_date=bs.exit_date; changed=true; }
+        if(bs.price_retail&&Object.keys(bs.price_retail).length){ s.price_retail=bs.price_retail; changed=true; }
+      }
+      if(changed){ await fsSaveItem(listName,s); updated++; }
+    }catch(e){ /* continue */ }
+  }
+  ov.classList.remove('on');
+  renderAll();
+  toast(`✓ ${updated} set${updated!==1?'s':''} actualizados!`);
 }
 
 // ── UPDATE ALL ESTIMATES ──
