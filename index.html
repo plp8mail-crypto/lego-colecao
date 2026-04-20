@@ -973,8 +973,7 @@ function saveBsFunctionUrl(){
   localStorage.setItem('lego_bs_function_url', val);
   st.textContent='✓ URL guardado! A Brickset irá usar esta função como proxy.'; st.style.color='var(--green)';
   toast('✓ URL da função guardado!');
-  // Reload BRICKSET_FUNCTION_URL constant
-  window.location.reload();
+  // No reload needed - URL is read dynamically
 }
 
 function saveAppUrl(){
@@ -1149,10 +1148,12 @@ async function testApi(api){
     if(api==='bs'){
       // For Brickset: test each proxy individually and show diagnostics
       statusEl.textContent='⏳ A testar proxies CORS…';statusEl.className='api-status testing';
-      const proxyNames=['directo','corsproxy.io','allorigins','codetabs','thingproxy'];
+      const proxyNames=['Firebase Function','directo','corsproxy.io','allorigins','codetabs','thingproxy'];
       const proxyResults=[];
       const bsCheck=`https://brickset.com/api/v3.asmx/checkKey?apiKey=${encodeURIComponent(apiConfig.bs.key)}`;
+      const _fnUrl = localStorage.getItem('lego_bs_function_url')||'';
       const proxyFns=[
+        async()=>{if(!_fnUrl)return null;const u=new URL(bsCheck);const m=u.pathname.split('/').pop();const r=await fetch(`${_fnUrl}?apiKey=${encodeURIComponent(apiConfig.bs.key)}&method=${m}&params=${encodeURIComponent('{}')}`);return r.ok?r.text():null;},
         async()=>{const r=await fetch(bsCheck);return r.ok?r.text():null;},
         async()=>{const r=await fetch('https://corsproxy.io/?'+encodeURIComponent(bsCheck));return r.ok?r.text():null;},
         async()=>{const r=await fetch('https://api.allorigins.win/get?url='+encodeURIComponent(bsCheck));if(!r.ok)return null;const j=await r.json();return j?.contents||null;},
@@ -1346,12 +1347,13 @@ async function lookupRebrickable(num){
 // Set this after deploying your Firebase Function:
 // Firebase Console → Functions → bricksetProxy → copy the URL
 // Format: https://us-central1-YOUR-PROJECT.cloudfunctions.net/bricksetProxy
-const BRICKSET_FUNCTION_URL = localStorage.getItem('lego_bs_function_url') || '';
+// BRICKSET_FUNCTION_URL is read dynamically in fetchViaCorsProxy
 
 async function fetchViaCorsProxy(targetUrl, timeoutMs=12000){
   const proxies = [];
 
   // 1. Firebase Cloud Function (own proxy — most reliable, no Cloudflare WAF issues)
+  const BRICKSET_FUNCTION_URL = localStorage.getItem('lego_bs_function_url')||'';
   if(BRICKSET_FUNCTION_URL){
     proxies.push({ name:'Firebase Function', fn: async () => {
       // Extract params from targetUrl and call our function
