@@ -478,7 +478,8 @@
         <div class="settings-sub">Quando um campo existe em mais do que uma API ativa, escolhe qual deve ser utilizado como fonte principal.</div>
         <div id="brickset-warning" style="display:none;background:#fff8e1;border:1px solid #ffe082;border-radius:10px;padding:10px 12px;font-size:12px;color:#7a5c00;margin-bottom:12px;line-height:1.6;">
           ⚠️ <strong>Subtema, Categoria, Exit Date e Preço Oficial</strong> vêm exclusivamente da API da <strong>Brickset</strong>.<br>
-          Configura e activa a Brickset nas APIs abaixo, depois clica em <strong>"🔄 Actualizar dados das APIs"</strong> na lista de sets.
+          A Brickset não suporta chamadas directas do browser (CORS). A app usa proxies públicos como intermediários — podem ser lentos ou indisponíveis em algumas redes.<br>
+          Se o teste falhar, tenta: (1) mudar de WiFi para dados móveis, (2) adicionar um set e ver se os dados aparecem, (3) usar o botão "🔄 Actualizar dados das APIs".
         </div>
         <table class="field-matrix" id="field-matrix">
           <thead>
@@ -1108,13 +1109,47 @@ async function testApi(api){
   fieldsEl.classList.remove('on');fieldsEl.innerHTML='';
   try{
     let result=null;
-    if(api==='rb') result=await lookupRebrickable('21051');
-    else if(api==='bs') result=await lookupBrickset('21051');
-    else if(api==='bl') result=await lookupBricklink('21051');
-    if(!result){
+    if(api==='bs'){
+      // For Brickset: test each proxy individually and show diagnostics
+      statusEl.textContent='⏳ A testar proxies CORS…';statusEl.className='api-status testing';
+      const proxyNames=['directo','corsproxy.io','allorigins','codetabs','thingproxy'];
+      const proxyResults=[];
+      const bsCheck=`https://brickset.com/api/v3.asmx/checkKey?apiKey=${encodeURIComponent(apiConfig.bs.key)}`;
+      const proxyFns=[
+        async()=>{const r=await fetch(bsCheck);return r.ok?r.text():null;},
+        async()=>{const r=await fetch('https://corsproxy.io/?'+encodeURIComponent(bsCheck));return r.ok?r.text():null;},
+        async()=>{const r=await fetch('https://api.allorigins.win/get?url='+encodeURIComponent(bsCheck));if(!r.ok)return null;const j=await r.json();return j?.contents||null;},
+        async()=>{const r=await fetch('https://api.codetabs.com/v1/proxy/?quest='+encodeURIComponent(bsCheck));return r.ok?r.text():null;},
+        async()=>{const r=await fetch('https://thingproxy.freeboard.io/fetch/'+bsCheck);return r.ok?r.text():null;},
+      ];
+      let keyOk=false; let workingProxy='';
+      for(let i=0;i<proxyFns.length;i++){
+        statusEl.textContent=`⏳ A testar proxy ${i+1}/5: ${proxyNames[i]}…`;
+        try{
+          const t=await Promise.race([proxyFns[i](),new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),8000))]);
+          const ok=!!(t&&t.includes('valid'));
+          proxyResults.push({name:proxyNames[i],ok,text:t?t.slice(0,80):'(sem resposta)'});
+          if(ok&&!keyOk){keyOk=true;workingProxy=proxyNames[i];}
+        }catch(e){proxyResults.push({name:proxyNames[i],ok:false,text:e.message});}
+      }
+      // Show proxy diagnostics
+      const diagRows=proxyResults.map(p=>`<div class="api-field-row"><span class="${p.ok?'api-field-ok':'api-field-empty'}">${p.ok?'✓':'✗'}</span><span style="font-weight:700;min-width:110px;display:inline-block">${p.name}</span><span style="font-size:10px;color:#888;word-break:break-all">${p.text}</span></div>`).join('');
+      fieldsEl.innerHTML='<div style="font-weight:700;margin-bottom:8px;font-size:11px;">📡 Diagnóstico de proxies CORS:</div>'+diagRows;
+      fieldsEl.classList.add('on');
+      if(!keyOk){
+        statusEl.textContent='✗ Todos os proxies falharam — ver diagnóstico abaixo';
+        statusEl.className='api-status err';
+        return;
+      }
+      statusEl.textContent=`✓ Chave válida! (proxy: ${workingProxy})`;statusEl.className='api-status ok';
+      result=await lookupBrickset('21051');
+    } else {
+      if(api==='rb') result=await lookupRebrickable('21051');
+      else if(api==='bl') result=await lookupBricklink('21051');
+    }
+    if(!result && api!=='bs'){
       let errMsg='✗ Sem resposta — ';
-      if(api==='bs') errMsg+='verifica se a chave está correcta em brickset.com. Se a chave for válida, pode ser um bloqueio de rede (CORS) — tenta adicionar um set para testar.';
-      else if(api==='rb') errMsg+='verifica a chave em rebrickable.com → Settings → API.';
+      if(api==='rb') errMsg+='verifica a chave em rebrickable.com → Settings → API.';
       else errMsg+='verifica as 4 credenciais OAuth do Bricklink.';
       statusEl.textContent=errMsg;statusEl.className='api-status err';return;
     }
@@ -1266,40 +1301,90 @@ async function lookupRebrickable(num){
   }catch(e){ return null; }
 }
 
+// ── BRICKSET CORS PROXY HELPER ──
+// Brickset API does not send CORS headers — we try multiple public proxies
+async function fetchViaCorsProxy(targetUrl, timeoutMs=10000){
+  const proxies = [
+    // Direct (no proxy) — works if Brickset ever adds CORS headers
+    { name:'direct', fn: async () => {
+      const r = await fetch(targetUrl);
+      return r.ok ? r.text() : null;
+    }},
+    // corsproxy.io — prepends proxy to URL, returns raw response
+    { name:'corsproxy.io', fn: async () => {
+      const r = await fetch('https://corsproxy.io/?' + encodeURIComponent(targetUrl));
+      return r.ok ? r.text() : null;
+    }},
+    // allorigins.win — wraps response in JSON envelope
+    { name:'allorigins', fn: async () => {
+      const r = await fetch('https://api.allorigins.win/get?url=' + encodeURIComponent(targetUrl));
+      if(!r.ok) return null;
+      const j = await r.json();
+      return j?.contents || null;
+    }},
+    // corsproxy.io raw
+    { name:'codetabs', fn: async () => {
+      const r = await fetch('https://api.codetabs.com/v1/proxy/?quest=' + encodeURIComponent(targetUrl));
+      return r.ok ? r.text() : null;
+    }},
+    // thingproxy
+    { name:'thingproxy', fn: async () => {
+      const r = await fetch('https://thingproxy.freeboard.io/fetch/' + targetUrl);
+      return r.ok ? r.text() : null;
+    }},
+  ];
+
+  for(const proxy of proxies){
+    try{
+      const text = await Promise.race([
+        proxy.fn(),
+        new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),timeoutMs))
+      ]);
+      if(text && text.includes('"status"')){
+        console.log(`[Brickset] proxy OK: ${proxy.name}`);
+        return text;
+      }
+    }catch(e){
+      console.log(`[Brickset] proxy fail (${proxy.name}):`, e.message);
+    }
+  }
+  return null;
+}
+
 async function lookupBrickset(num){
   if(!apiConfig.bs.enabled || !apiConfig.bs.key) return null;
   const setNum = num.replace(/-\d+$/,'');
-  // Direct Brickset URL
-  const bricksetUrl = `https://brickset.com/api/v3.asmx/getSets?apiKey=${encodeURIComponent(apiConfig.bs.key)}&userHash=&params=${encodeURIComponent(JSON.stringify({setNumber:setNum,pageSize:1}))}`;
-  // Brickset does not send CORS headers — route through a public CORS proxy
-  // allorigins.win wraps the response in JSON: { contents: "...", status: {...} }
-  const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(bricksetUrl)}`;
-  try{
-    const res = await fetch(proxyUrl);
-    if(!res.ok) return null;
-    const wrapper = await res.json();
-    if(!wrapper?.contents) return null;
-    let d;
-    try { d = JSON.parse(wrapper.contents); } catch(e){ return null; }
-    if(!d || d.status==='error') return null;
-    const s = d.sets?.[0]; if(!s) return null;
-    const retail = {};
-    if(s.LEGOCom?.US?.retailPrice) retail.US = s.LEGOCom.US.retailPrice;
-    if(s.LEGOCom?.UK?.retailPrice) retail.UK = s.LEGOCom.UK.retailPrice;
-    if(s.LEGOCom?.CA?.retailPrice) retail.CA = s.LEGOCom.CA.retailPrice;
-    if(s.LEGOCom?.DE?.retailPrice) retail.DE = s.LEGOCom.DE.retailPrice;
-    const exitDate = s.exitDate
-                  || s.LEGOCom?.US?.dateLastAvailable
-                  || s.LEGOCom?.UK?.dateLastAvailable
-                  || s.LEGOCom?.DE?.dateLastAvailable || null;
-    return { _src:'bs', set_num:s.number+'-1', name:s.name, num_parts:s.pieces||0,
-             year:s.year||null,
-             theme_name: s.theme||null,
-             subtheme:   s.subtheme||null,
-             category:   s.category||null,
-             set_img_url:s.image?.imageURL||null, price_retail:retail,
-             exit_date:exitDate ? exitDate.slice(0,10) : null };
-  }catch(e){ return null; }
+  // Note: Brickset accepts both JSON (double quotes) and Python-dict (single quotes) format
+  const targetUrl = `https://brickset.com/api/v3.asmx/getSets?apiKey=${encodeURIComponent(apiConfig.bs.key)}&userHash=&params=${encodeURIComponent(JSON.stringify({setNumber:setNum,pageSize:1}))}`;
+
+  const text = await fetchViaCorsProxy(targetUrl);
+  if(!text) return null;
+
+  let d;
+  try { d = JSON.parse(text); } catch(e){ return null; }
+  if(!d || d.status==='error') return null;
+  const s = d.sets?.[0]; if(!s) return null;
+  const retail = {};
+  if(s.LEGOCom?.US?.retailPrice) retail.US = s.LEGOCom.US.retailPrice;
+  if(s.LEGOCom?.UK?.retailPrice) retail.UK = s.LEGOCom.UK.retailPrice;
+  if(s.LEGOCom?.CA?.retailPrice) retail.CA = s.LEGOCom.CA.retailPrice;
+  if(s.LEGOCom?.DE?.retailPrice) retail.DE = s.LEGOCom.DE.retailPrice;
+  const exitDate = s.exitDate
+                || s.LEGOCom?.US?.dateLastAvailable
+                || s.LEGOCom?.UK?.dateLastAvailable
+                || s.LEGOCom?.DE?.dateLastAvailable || null;
+  return { _src:'bs', set_num:s.number+'-1', name:s.name, num_parts:s.pieces||0,
+           year:s.year||null, theme_name:s.theme||null, subtheme:s.subtheme||null,
+           category:s.category||null, set_img_url:s.image?.imageURL||null,
+           price_retail:retail, exit_date:exitDate?exitDate.slice(0,10):null };
+}
+
+// Also expose a checkKey test for the Brickset test button
+async function checkBricksetKey(){
+  if(!apiConfig.bs.key) return false;
+  const targetUrl = `https://brickset.com/api/v3.asmx/checkKey?apiKey=${encodeURIComponent(apiConfig.bs.key)}`;
+  const text = await fetchViaCorsProxy(targetUrl, 8000);
+  return text && text.includes('"valid"');
 }
 
 async function lookupBricklink(num){
