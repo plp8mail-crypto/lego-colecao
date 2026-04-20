@@ -1269,14 +1269,18 @@ async function lookupRebrickable(num){
 async function lookupBrickset(num){
   if(!apiConfig.bs.enabled || !apiConfig.bs.key) return null;
   const setNum = num.replace(/-\d+$/,'');
+  // Direct Brickset URL
+  const bricksetUrl = `https://brickset.com/api/v3.asmx/getSets?apiKey=${encodeURIComponent(apiConfig.bs.key)}&userHash=&params=${encodeURIComponent(JSON.stringify({setNumber:setNum,pageSize:1}))}`;
+  // Brickset does not send CORS headers — route through a public CORS proxy
+  // allorigins.win wraps the response in JSON: { contents: "...", status: {...} }
+  const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(bricksetUrl)}`;
   try{
-    // Brickset v3: plain GET with NO headers — any custom header triggers CORS preflight which Brickset blocks
-    const qs = `apiKey=${encodeURIComponent(apiConfig.bs.key)}&userHash=&params=${encodeURIComponent(JSON.stringify({setNumber:setNum,pageSize:1}))}`;
-    const res = await fetch(`https://brickset.com/api/v3.asmx/getSets?${qs}`);
+    const res = await fetch(proxyUrl);
     if(!res.ok) return null;
-    const text = await res.text();
+    const wrapper = await res.json();
+    if(!wrapper?.contents) return null;
     let d;
-    try { d = JSON.parse(text); } catch(e){ return null; }
+    try { d = JSON.parse(wrapper.contents); } catch(e){ return null; }
     if(!d || d.status==='error') return null;
     const s = d.sets?.[0]; if(!s) return null;
     const retail = {};
