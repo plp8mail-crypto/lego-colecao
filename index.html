@@ -733,8 +733,17 @@ async function fsDeleteItem(listName, item){
 
 // ── AUTH ──
 async function setupUser(user) {
+  try {
   uid = user.uid;
-  // Avatar with fallback to initials (element may not exist if removed from header)
+  // Always hide splash and login screen first
+  hideSplash();
+  document.getElementById('login-screen').classList.remove('on');
+
+  // Reset login button state in case we came from the login form
+  const loginBtn = document.getElementById('login-btn');
+  if(loginBtn){ loginBtn.disabled=false; loginBtn.textContent='Entrar'; }
+
+  // Avatar (element may not exist if removed from header)
   const name = user.displayName||user.email||'U';
   const initials = name.split(/[\s@]/g).filter(Boolean).map(w=>w[0].toUpperCase()).slice(0,2).join('');
   const avatarEl = document.getElementById('avatar');
@@ -774,7 +783,7 @@ async function setupUser(user) {
   // Background refresh: for sets missing subtheme/category/exit_date, re-fetch from APIs silently
   setTimeout(()=>refreshMissingFields(), 2000);
   sync(colData!==null?'ok':'offline');
-  hideSplash();
+  // hideSplash already called at top of setupUser
 
   const hasApi = apiConfig.rb.key||apiConfig.bs.key||apiConfig.bl.consumerKey;
   if(!hasApi){
@@ -783,6 +792,16 @@ async function setupUser(user) {
     showMain();
   }
   loadSettingsUI();
+  } catch(err) {
+    console.error('setupUser error:', err);
+    // Show error on login screen so user knows something went wrong
+    hideSplash();
+    showLogin();
+    const errEl = document.getElementById('login-error');
+    if(errEl){ errEl.textContent = 'Erro ao carregar: ' + (err.message||err); errEl.classList.add('on'); }
+    const btn = document.getElementById('login-btn');
+    if(btn){ btn.disabled=false; btn.textContent='Entrar'; }
+  }
 }
 
 async function initAuth() {
