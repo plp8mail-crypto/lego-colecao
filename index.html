@@ -63,9 +63,9 @@
     .login-error{color:#ffcccc;font-size:13px;font-weight:600;text-align:center;display:none;}
     .login-error.on{display:block;}
     /* Password recovery & change modal */
-    .pw-modal{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center;z-index:800;padding:20px;}
+    .pw-modal{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center;z-index:1100;padding:20px;}
     .pw-modal.on{display:flex;}
-    .pw-box{background:var(--surface);border-radius:18px;padding:24px;width:100%;max-width:400px;box-shadow:0 8px 32px rgba(0,0,0,.2);}
+    .pw-box{background:var(--surface);border-radius:18px;padding:22px;width:100%;max-width:400px;max-height:90vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,.2);}
     .pw-title{font-size:16px;font-weight:800;margin-bottom:6px;}
     .pw-sub{font-size:13px;color:var(--muted);margin-bottom:16px;line-height:1.5;}
     .pw-input{width:100%;background:var(--bg);border:1.5px solid var(--border);border-radius:10px;color:var(--text);padding:12px 14px;font-size:14px;font-family:'DM Sans',sans-serif;outline:none;margin-bottom:10px;}
@@ -595,39 +595,8 @@
   <input type="file" id="photo-input" accept="image/*" capture="environment"/>
 </div>
 
-<!-- FORGOT PASSWORD MODAL -->
-<div class="pw-modal" id="forgot-modal">
-  <div class="pw-box">
-    <div class="pw-title">🔑 Recuperar senha</div>
-    <div class="pw-sub">Introduz o teu email. Vais receber um link para definires uma nova senha.</div>
-    <div id="forgot-url-warning" style="display:none;background:#fff8e1;border:1px solid #ffe082;border-radius:8px;padding:10px 12px;font-size:11px;color:#7a5c00;margin-bottom:10px;line-height:1.5;">
-      ⚠️ Para o link de recuperação funcionar, configura primeiro o <strong>URL da aplicação</strong> nas Definições → 🌐 URL da aplicação.<br>
-      O URL deve ser: <code style="font-size:10px;">https://plp8mail-crypto.github.io/lego-colecao-vO.html</code>
-    </div>
-    <input class="pw-input" id="forgot-email" type="email" placeholder="o teu email…" autocomplete="email"/>
-    <div class="pw-err" id="forgot-err"></div>
-    <div class="pw-ok" id="forgot-ok">✓ Email enviado! Verifica a tua caixa de entrada e clica no link.</div>
-    <button class="pw-btn" onclick="sendForgotPassword()">Enviar email de recuperação</button>
-    <button class="pw-cancel" onclick="closeForgotModal()">Cancelar</button>
-  </div>
-</div>
 
-<!-- CHANGE PASSWORD MODAL -->
-<div class="pw-modal" id="change-pw-modal">
-  <div class="pw-box">
-    <div class="pw-title">🔒 Alterar senha</div>
-    <div class="pw-sub">Introduce a senha actual e a nova senha.</div>
-    <input class="pw-input" id="cpw-current" type="password" placeholder="Senha actual…"/>
-    <input class="pw-input" id="cpw-new" type="password" placeholder="Nova senha (mín. 6 caracteres)…"/>
-    <input class="pw-input" id="cpw-confirm" type="password" placeholder="Confirmar nova senha…"/>
-    <div class="pw-err" id="cpw-err"></div>
-    <div class="pw-ok" id="cpw-ok">✓ Senha alterada com sucesso!</div>
-    <button class="pw-btn" onclick="doChangePassword()">Alterar senha</button>
-    <button class="pw-cancel" onclick="closeChangePwModal()">Cancelar</button>
-  </div>
-</div>
-
-<!-- UPDATING OVERLAY -->
+<!-- UPDATING OVERLAY --><!-- UPDATING OVERLAY -->
 <div class="updating-overlay" id="updating-overlay">
   <div class="updating-box">
     <div class="spinner-sm" style="border:3px solid rgba(0,0,0,.1);border-top-color:var(--red);border-radius:50%;animation:spin .7s linear infinite;width:24px;height:24px;margin:0 auto 12px;"></div>
@@ -1980,5 +1949,39 @@ function toast(msg,ok=true){
   document.body.appendChild(el); setTimeout(()=>el.remove(),3200);
 }
 </script>
+
+<!-- FORGOT PASSWORD MODAL -->
+<div class="pw-modal" id="forgot-modal">
+  <div class="pw-box">
+    <div class="pw-title">🔑 Recuperar senha</div>
+    <div class="pw-sub">Introduz o teu email. Vais receber um link para definires uma nova senha.</div>
+    <div id="forgot-url-warning" style="display:none;background:#fff8e1;border:1px solid #ffe082;border-radius:8px;padding:10px 12px;font-size:11px;color:#7a5c00;margin-bottom:10px;line-height:1.5;">
+      ⚠️ Para o link de recuperação funcionar, configura primeiro o <strong>URL da aplicação</strong> nas Definições → 🌐 URL da aplicação.<br>
+      O URL deve ser: <code style="font-size:10px;">https://plp8mail-crypto.github.io/lego-colecao-vO.html</code>
+    </div>
+    <input class="pw-input" id="forgot-email" type="email" placeholder="o teu email…" autocomplete="email"/>
+    <div class="pw-err" id="forgot-err"></div>
+    <div class="pw-ok" id="forgot-ok">✓ Email enviado! Verifica a tua caixa de entrada e clica no link.</div>
+    <button class="pw-btn" onclick="sendForgotPassword()">Enviar email de recuperação</button>
+    <button class="pw-cancel" onclick="closeForgotModal()">Cancelar</button>
+  </div>
+</div>
+
+<!-- CHANGE PASSWORD MODAL -->
+<div class="pw-modal" id="change-pw-modal">
+  <div class="pw-box">
+    <div class="pw-title">🔒 Alterar senha</div>
+    <div class="pw-sub">Introduce a senha actual e a nova senha.</div>
+    <input class="pw-input" id="cpw-current" type="password" placeholder="Senha actual…"/>
+    <input class="pw-input" id="cpw-new" type="password" placeholder="Nova senha (mín. 6 caracteres)…"/>
+    <input class="pw-input" id="cpw-confirm" type="password" placeholder="Confirmar nova senha…"/>
+    <div class="pw-err" id="cpw-err"></div>
+    <div class="pw-ok" id="cpw-ok">✓ Senha alterada com sucesso!</div>
+    <button class="pw-btn" onclick="doChangePassword()">Alterar senha</button>
+    <button class="pw-cancel" onclick="closeChangePwModal()">Cancelar</button>
+  </div>
+</div>
+
+
 </body>
 </html>
