@@ -476,6 +476,10 @@
       <div class="settings-section">
         <div class="settings-title">🔢 Origem dos campos</div>
         <div class="settings-sub">Quando um campo existe em mais do que uma API ativa, escolhe qual deve ser utilizado como fonte principal.</div>
+        <div id="brickset-warning" style="display:none;background:#fff8e1;border:1px solid #ffe082;border-radius:10px;padding:10px 12px;font-size:12px;color:#7a5c00;margin-bottom:12px;line-height:1.6;">
+          ⚠️ <strong>Subtema, Categoria, Exit Date e Preço Oficial</strong> vêm exclusivamente da API da <strong>Brickset</strong>.<br>
+          Configura e activa a Brickset nas APIs abaixo, depois clica em <strong>"🔄 Actualizar dados das APIs"</strong> na lista de sets.
+        </div>
         <table class="field-matrix" id="field-matrix">
           <thead>
             <tr>
@@ -762,14 +766,15 @@ async function setupUser(user) {
   if(umenuEmail) umenuEmail.textContent = user.email||'';
 
   // Load multi-API config
-  const savedApi = localStorage.getItem(`lego_apiconfig_${uid}`);
+  // Load API config — try uid-specific first, fall back to generic (survives logout/login)
+  const savedApi = localStorage.getItem(`lego_apiconfig_${uid}`) || localStorage.getItem('lego_apiconfig');
   if(savedApi){ try{ apiConfig={...apiConfig,...JSON.parse(savedApi)}; }catch(e){} }
   // Legacy migration
   const legacyKey = localStorage.getItem(`lego_apikey_${uid}`);
   if(legacyKey && !apiConfig.rb.key){ apiConfig.rb.key=legacyKey; apiConfig.rb.enabled=true; saveApiConfig(); }
 
-  // Load field sources
-  const savedFs = localStorage.getItem(`lego_fieldsrc_${uid}`);
+  // Load field sources — try uid-specific first, fall back to generic
+  const savedFs = localStorage.getItem(`lego_fieldsrc_${uid}`) || localStorage.getItem('lego_fieldsrc');
   if(savedFs){ try{ fieldSources={...fieldSources,...JSON.parse(savedFs)}; }catch(e){} }
 
   document.getElementById('splash-text').textContent = 'A sincronizar coleção…';
@@ -780,8 +785,12 @@ async function setupUser(user) {
     if(!s.currency || s.currency === 'US') s.currency = '€';
   });
 
-  // Background refresh: for sets missing subtheme/category/exit_date, re-fetch from APIs silently
-  setTimeout(()=>refreshMissingFields(), 2000);
+  // Save migrated currency values
+  if([...collection,...wishlist].some(s=>!s._currencyMigrated)){
+    [...collection,...wishlist].forEach(s=>s._currencyMigrated=true);
+  }
+  // Background refresh: for sets missing subtheme/category/exit_date
+  setTimeout(()=>refreshMissingFields(), 1500);
   sync(colData!==null?'ok':'offline');
   // hideSplash already called at top of setupUser
 
@@ -934,7 +943,11 @@ function openUserMenu(){ document.getElementById('umenu').classList.add('on'); d
 function closeUserMenu(){ document.getElementById('umenu').classList.remove('on'); document.getElementById('umenu-overlay').classList.remove('on'); }
 
 // ── API CONFIG ──
-function saveApiConfig(){ localStorage.setItem(`lego_apiconfig_${uid}`, JSON.stringify(apiConfig)); }
+function saveApiConfig(){
+  const data = JSON.stringify(apiConfig);
+  localStorage.setItem(`lego_apiconfig_${uid}`, data);
+  localStorage.setItem('lego_apiconfig', data); // generic fallback for next login
+}
 
 function saveAppUrl(){
   const val = document.getElementById('app-url-input').value.trim();
@@ -1045,6 +1058,12 @@ function saveApiKey(api){
 function renderFieldMatrix(){
   const body=document.getElementById('field-matrix-body'); if(!body) return;
   const activeApis={rb:apiConfig.rb.enabled&&apiConfig.rb.key, bs:apiConfig.bs.enabled&&apiConfig.bs.key, bl:apiConfig.bl.enabled&&apiConfig.bl.consumerKey};
+  // Show warning if Brickset not active
+  const bsWarning = document.getElementById('brickset-warning');
+  if(bsWarning){
+    const bsActive = apiConfig.bs.enabled && apiConfig.bs.key;
+    bsWarning.style.display = bsActive ? 'none' : 'block';
+  }
   body.innerHTML = FIELD_DEFS.map(f=>{
     const apis=['rb','bs','bl'];
     const available = apis.filter(a=>f[a]&&activeApis[a]);
@@ -1072,7 +1091,9 @@ function saveFieldSources(){
     const sel=document.querySelector(`input[name="fs_${f.key}"]:checked`);
     if(sel) fieldSources[f.key]=sel.value;
   });
-  localStorage.setItem(`lego_fieldsrc_${uid}`, JSON.stringify(fieldSources));
+  const fsData = JSON.stringify(fieldSources);
+  localStorage.setItem(`lego_fieldsrc_${uid}`, fsData);
+  localStorage.setItem('lego_fieldsrc', fsData); // generic fallback
   toast('✓ Preferências guardadas!');
 }
 
@@ -1186,25 +1207,21 @@ async function refreshMissingFields(){
   const allLists = [{list:collection, name:'collection'}, {list:wishlist, name:'wishlist'}];
   for(const {list, name} of allLists){
     for(const s of list){
-      const needsRefresh = (s.subtheme === undefined || s.subtheme === null) &&
-                           (s.category === undefined || s.category === null) &&
-                           (s.exit_date === undefined || s.exit_date === null);
+      // Refresh if missing any Brickset-only fields
+      const needsRefresh = !s.subtheme || !s.category || !s.exit_date ||
+                           !s.price_retail || Object.keys(s.price_retail||{}).length === 0;
       if(!needsRefresh) continue;
       try{
         const numBase = (s.set_num||'').replace(/-\d+$/,'');
         const bs = await lookupBrickset(numBase);
         if(!bs) continue;
         let changed = false;
-        if(bs.subtheme  && !s.subtheme)  { s.subtheme  = bs.subtheme;  changed = true; }
-        if(bs.category  && !s.category)  { s.category  = bs.category;  changed = true; }
-        if(bs.exit_date && !s.exit_date) { s.exit_date = bs.exit_date; changed = true; }
-        // Also update theme_name to be just the theme (not combined), so cardHTML can combine
-        if(bs.theme_name && s.theme_name && s.theme_name.includes(' - ')){
-          // Already combined from old code — split it back
-          const parts = s.theme_name.split(' - ');
-          s.theme_name = parts[0]; s.subtheme = parts.slice(1).join(' - '); changed = true;
-        } else if(bs.theme_name && !s.theme_name){
-          s.theme_name = bs.theme_name; changed = true;
+        if(bs.theme_name){ s.theme_name = bs.theme_name; changed = true; }
+        if(bs.subtheme !== undefined){ s.subtheme = bs.subtheme || null; changed = true; }
+        if(bs.category !== undefined){ s.category = bs.category || null; changed = true; }
+        if(bs.exit_date){ s.exit_date = bs.exit_date; changed = true; }
+        if(bs.price_retail && Object.keys(bs.price_retail).length > 0){
+          s.price_retail = bs.price_retail; changed = true;
         }
         if(changed) await fsSaveItem(name, s);
       }catch(e){ /* silent */ }
@@ -1669,9 +1686,15 @@ function cardHTML(s,listKey,isWish){
     : '';
 
   // Build theme display: "Theme - Subtheme" when subtheme exists
-  const themeDisplay = s.theme_name
-    ? (s.subtheme ? `${s.theme_name} - ${s.subtheme}` : s.theme_name)
-    : null;
+  // Handle both: items with separate subtheme field, and old items with combined theme_name
+  let themeDisplay = null;
+  if(s.theme_name){
+    if(s.subtheme && !s.theme_name.includes(' - ')){
+      themeDisplay = `${s.theme_name} - ${s.subtheme}`;
+    } else {
+      themeDisplay = s.theme_name; // either combined already, or no subtheme
+    }
+  }
   const themeEsc = (themeDisplay||'').replace(/'/g,"\'").replace(/"/g,'&quot;');
   const catEsc   = (s.category  ||'').replace(/'/g,"\'").replace(/"/g,'&quot;');
 
@@ -1699,7 +1722,14 @@ function cardHTML(s,listKey,isWish){
         </div>
         <div class="pcell" style="flex:1;" onclick="startPrice(this,'${listKey}','${s.set_num}','price_official','${s.price_official??''}')">
           <div class="plabel">Oficial LEGO</div>
-          <div class="pval ${!of?'empty':''}">${of||'—'}</div>
+          <div class="pval ${!of?'empty':''}">${of||(()=>{
+            const r=s.price_retail||{};
+            const cc=s.currency||'€';
+            const sym={US:'$',UK:'£',CA:'CA$','€':'€',DE:'€'};
+            const key=cc==='€'?'DE':cc;
+            const v=r[key];
+            return v!=null?(sym[cc]||'')+parseFloat(v).toLocaleString('pt-PT',{minimumFractionDigits:2,maximumFractionDigits:2})+' *':'—';
+          })()}</div>
         </div>
         <div class="pcell" style="flex:1;" onclick="startPrice(this,'${listKey}','${s.set_num}','price_paid','${s.price_paid??''}')">
           <div class="plabel">Paguei</div>
