@@ -734,18 +734,23 @@ async function fsDeleteItem(listName, item){
 // ── AUTH ──
 async function setupUser(user) {
   uid = user.uid;
-  // Avatar with fallback to initials
+  // Avatar with fallback to initials (element may not exist if removed from header)
   const name = user.displayName||user.email||'U';
   const initials = name.split(/[\s@]/g).filter(Boolean).map(w=>w[0].toUpperCase()).slice(0,2).join('');
   const avatarEl = document.getElementById('avatar');
-  if(user.photoURL){
-    avatarEl.innerHTML = `<img src="${user.photoURL}" alt="${initials}" onerror="this.parentNode.innerHTML='<span class=avatar-initials>${initials}</span>'"/>`;
-  } else {
-    avatarEl.innerHTML = `<span class="avatar-initials">${initials}</span>`;
+  if(avatarEl){
+    if(user.photoURL){
+      avatarEl.innerHTML = `<img src="${user.photoURL}" alt="${initials}" onerror="this.parentNode.innerHTML='<span class=avatar-initials>${initials}</span>'"/>`;
+    } else {
+      avatarEl.innerHTML = `<span class="avatar-initials">${initials}</span>`;
+    }
   }
-  document.getElementById('umenu-avatar').src = user.photoURL||'';
-  document.getElementById('umenu-name').textContent = user.displayName||user.email||'';
-  document.getElementById('umenu-email').textContent = user.email||'';
+  const umenuAvatarEl = document.getElementById('umenu-avatar');
+  if(umenuAvatarEl) umenuAvatarEl.src = user.photoURL||'';
+  const umenuName = document.getElementById('umenu-name');
+  if(umenuName) umenuName.textContent = user.displayName||user.email||'';
+  const umenuEmail = document.getElementById('umenu-email');
+  if(umenuEmail) umenuEmail.textContent = user.email||'';
 
   // Load multi-API config
   const savedApi = localStorage.getItem(`lego_apiconfig_${uid}`);
