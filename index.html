@@ -967,12 +967,19 @@ function saveApiConfig(){
 function toggleKeyVisibility(inputId, btn){
   const inp = document.getElementById(inputId);
   if(!inp) return;
-  if(inp.type === 'text'){
-    inp.type = 'password';
-    btn.textContent = '👁';
-  } else {
+  if(inp.type === 'password'){
+    // Show: if field is empty but key is saved, populate it temporarily
+    const api = inputId === 'key-rb' ? 'rb' : inputId === 'key-bs' ? 'bs' : null;
+    if(api && apiConfig[api]?.key && !inp.value){
+      inp.value = apiConfig[api].key;
+    }
     inp.type = 'text';
     btn.textContent = '🔒';
+    btn.title = 'Esconder';
+  } else {
+    inp.type = 'password';
+    btn.textContent = '👁';
+    btn.title = 'Mostrar';
   }
 }
 
@@ -1186,7 +1193,7 @@ async function testApi(api){
         statusEl.textContent=`⏳ A testar proxy ${i+1}/5: ${proxyNames[i]}…`;
         try{
           const t=await Promise.race([proxyFns[i](),new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),8000))]);
-          const ok=!!(t&&(t.includes('"status":"valid"') || t.includes("sets") ));
+          const ok=!!(t&&(t.includes('"status":"valid"') || t.includes('"sets"') || t.includes('limit exceeded')));
           proxyResults.push({name:proxyNames[i],ok,text:t?t.slice(0,80):'(sem resposta)'});
           if(ok&&!keyOk){keyOk=true;workingProxy=proxyNames[i];}
         }catch(e){proxyResults.push({name:proxyNames[i],ok:false,text:e.message});}
@@ -1196,8 +1203,15 @@ async function testApi(api){
       fieldsEl.innerHTML='<div style="font-weight:700;margin-bottom:8px;font-size:11px;">📡 Diagnóstico de proxies CORS:</div>'+diagRows;
       fieldsEl.classList.add('on');
       if(!keyOk){
-        statusEl.textContent='✗ Todos os proxies falharam — ver diagnóstico abaixo';
-        statusEl.className='api-status err';
+        // Check if limit exceeded (function works, just daily limit hit)
+        const limitHit = proxyResults.some(p=>p.text&&p.text.includes('limit exceeded'));
+        if(limitHit){
+          statusEl.textContent='⚠️ Limite diário da Brickset atingido (100 chamadas/dia). A função Firebase está a funcionar. Tenta amanhã.';
+          statusEl.className='api-status';
+        } else {
+          statusEl.textContent='✗ Todos os proxies falharam — ver diagnóstico abaixo';
+          statusEl.className='api-status err';
+        }
         return;
       }
       statusEl.textContent=`✓ Chave válida! (proxy: ${workingProxy})`;statusEl.className='api-status ok';
