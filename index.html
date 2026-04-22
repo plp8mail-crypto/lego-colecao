@@ -477,9 +477,8 @@
         <div class="settings-title">🔢 Origem dos campos</div>
         <div class="settings-sub">Quando um campo existe em mais do que uma API ativa, escolhe qual deve ser utilizado como fonte principal.</div>
         <div id="brickset-warning" style="display:none;background:#fff8e1;border:1px solid #ffe082;border-radius:10px;padding:10px 12px;font-size:12px;color:#7a5c00;margin-bottom:12px;line-height:1.6;">
-          ⚠️ <strong>Subtema, Categoria, Exit Date e Preço Oficial</strong> vêm exclusivamente da API da <strong>Brickset</strong>.<br>
-          A Brickset não suporta chamadas directas do browser (CORS). A app usa proxies públicos como intermediários — podem ser lentos ou indisponíveis em algumas redes.<br>
-          Se o teste falhar, tenta: (1) mudar de WiFi para dados móveis, (2) adicionar um set e ver se os dados aparecem, (3) usar o botão "🔄 Actualizar dados das APIs".
+          ✅ <strong>Subtema, Categoria, Exit Date e Preço Oficial</strong> são lidos directamente de uma base de dados CSV local no GitHub — sem limites, sem CORS, sem proxies.<br>
+          Clica em <strong>"🔍 Testar"</strong> para verificar que a base de dados está acessível.
         </div>
         <table class="field-matrix" id="field-matrix">
           <thead>
@@ -1174,7 +1173,27 @@ async function testApi(api){
     let result=null;
     if(api==='bs'){
       // For Brickset: test each proxy individually and show diagnostics
-      statusEl.textContent='⏳ A testar proxies CORS…';statusEl.className='api-status testing';
+      statusEl.textContent='⏳ A carregar base de dados CSV…';statusEl.className='api-status testing';
+      bricksetDB = null; bricksetDBLoading = false; // force reload
+      // Test CSV database instead of API proxies
+      try {
+        const db_csv = await loadBricksetDB();
+        if(db_csv){
+          const count = Object.keys(db_csv).length;
+          statusEl.textContent = `✓ Base de dados CSV carregada — ${count} sets disponíveis!`;
+          statusEl.className = 'api-status ok';
+          result = await lookupBrickset('21051');
+        } else {
+          statusEl.textContent = '✗ Não foi possível carregar o CSV do GitHub.';
+          statusEl.className = 'api-status err';
+          return;
+        }
+      } catch(e) {
+        statusEl.textContent = '✗ Erro: ' + e.message;
+        statusEl.className = 'api-status err';
+        return;
+      }
+      if(false){ // skip old proxy test
       const proxyNames=['Firebase Function','directo','corsproxy.io','allorigins','codetabs','thingproxy'];
       const proxyResults=[];
       const bsCheck=`https://brickset.com/api/v3.asmx/checkKey?apiKey=${encodeURIComponent(apiConfig.bs.key)}`;
@@ -1203,15 +1222,15 @@ async function testApi(api){
       fieldsEl.innerHTML='<div style="font-weight:700;margin-bottom:8px;font-size:11px;">📡 Diagnóstico de proxies CORS:</div>'+diagRows;
       fieldsEl.classList.add('on');
       if(!keyOk){
-        // Check if limit exceeded (function works, just daily limit hit)
         const limitHit = proxyResults.some(p=>p.text&&p.text.includes('limit exceeded'));
         if(limitHit){
-          statusEl.textContent='⚠️ Limite diário da Brickset atingido (100 chamadas/dia). A função Firebase está a funcionar. Tenta amanhã.';
+          statusEl.textContent='⚠️ Limite diário da Brickset atingido.';
           statusEl.className='api-status';
         } else {
-          statusEl.textContent='✗ Todos os proxies falharam — ver diagnóstico abaixo';
+          statusEl.textContent='✗ Proxies falharam — ver diagnóstico abaixo';
           statusEl.className='api-status err';
         }
+      } // end if(false)
         return;
       }
       statusEl.textContent=`✓ Chave válida! (proxy: ${workingProxy})`;statusEl.className='api-status ok';
@@ -1442,11 +1461,82 @@ async function fetchViaCorsProxy(targetUrl, timeoutMs=12000){
   return null;
 }
 
-async function lookupBrickset(num){
-  if(!apiConfig.bs.enabled || !apiConfig.bs.key) return null;
-  const setNum = num.replace(/-\d+$/,'');
+// ── BRICKSET CSV DATABASE ──
+// CSV loaded once from GitHub and cached in memory
+let bricksetDB = null;
+let bricksetDBLoading = false;
+let bricksetDBCallbacks = [];
 
-  // ── CACHE: tenta ler do Firestore antes de chamar a API ──
+const BRICKSET_CSV_URL = 'https://raw.githubusercontent.com/plp8mail-crypto/lego-colecao/main/LEGO_Dados_Brutos.csv';
+
+async function loadBricksetDB(){
+  if(bricksetDB) return bricksetDB;
+  if(bricksetDBLoading){
+    // Wait for existing load to finish
+    return new Promise(resolve => bricksetDBCallbacks.push(resolve));
+  }
+  bricksetDBLoading = true;
+  try{
+    console.log('[Brickset] Loading CSV database...');
+    const r = await fetch(BRICKSET_CSV_URL);
+    if(!r.ok) throw new Error('HTTP ' + r.status);
+    const text = await r.text();
+    const lines = text.split('\n');
+    const headers = lines[0].split(',');
+    bricksetDB = {};
+    for(let i = 1; i < lines.length; i++){
+      if(!lines[i].trim()) continue;
+      // Parse CSV line (handle quoted fields)
+      const fields = parseCSVLine(lines[i]);
+      const row = {};
+      headers.forEach((h, idx) => row[h.trim()] = (fields[idx]||'').trim());
+      const num = row['number'];
+      if(num) bricksetDB[num] = row;
+    }
+    console.log('[Brickset] CSV loaded:', Object.keys(bricksetDB).length, 'sets');
+    bricksetDBCallbacks.forEach(cb => cb(bricksetDB));
+    bricksetDBCallbacks = [];
+    return bricksetDB;
+  }catch(e){
+    console.error('[Brickset] Failed to load CSV:', e);
+    bricksetDBLoading = false;
+    bricksetDBCallbacks.forEach(cb => cb(null));
+    bricksetDBCallbacks = [];
+    return null;
+  }
+}
+
+function parseCSVLine(line){
+  const result = [];
+  let current = '';
+  let inQuotes = false;
+  for(let i = 0; i < line.length; i++){
+    const ch = line[i];
+    if(ch === '"'){
+      inQuotes = !inQuotes;
+    } else if(ch === ',' && !inQuotes){
+      result.push(current);
+      current = '';
+    } else {
+      current += ch;
+    }
+  }
+  result.push(current);
+  return result;
+}
+
+function parsePrice(val){
+  if(!val || val === '{}' || val === 'None' || val === '') return null;
+  // Try to extract price from dict-like string e.g. "{'retailPrice': 49.99}"
+  const m = val.match(/retailPrice['":\s]+([\d.]+)/);
+  return m ? parseFloat(m[1]) : null;
+}
+
+async function lookupBrickset(num){
+  if(!apiConfig.bs.enabled) return null;
+  const setNum = num.replace(/-\d+$/, '');
+
+  // Check Firestore cache first
   if(uid){
     try{
       const cacheDoc = await db.collection('users').doc(uid)
@@ -1455,44 +1545,67 @@ async function lookupBrickset(num){
         console.log('[Brickset] cache hit:', setNum);
         return cacheDoc.data();
       }
-    }catch(e){ console.warn('[Brickset] cache read error:', e); }
+    }catch(e){}
   }
 
-  // ── API: cache miss — vai buscar à Brickset ──
-  const targetUrl = `https://brickset.com/api/v3.asmx/getSets?apiKey=${encodeURIComponent(apiConfig.bs.key)}&userHash=&params=${encodeURIComponent(JSON.stringify({setNumber:setNum,pageSize:1}))}`;
-  const text = await fetchViaCorsProxy(targetUrl);
-  if(!text) return null;
+  // Load CSV database
+  const db_csv = await loadBricksetDB();
+  if(!db_csv) return null;
 
-  let d;
-  try { d = JSON.parse(text); } catch(e){ return null; }
-  if(!d || d.status==='error') return null;
-  const s = d.sets?.[0]; if(!s) return null;
+  const row = db_csv[setNum];
+  if(!row) return null;
+
+  // Parse LEGOCom prices from CSV string representation
+  const legocom = row['LEGOCom'] || '';
+  const priceDE = parsePrice(legocom.match(/'DE':\s*({[^}]*})/)?.[1] || '');
+  const priceUS = parsePrice(legocom.match(/'US':\s*({[^}]*})/)?.[1] || '');
+  const priceUK = parsePrice(legocom.match(/'UK':\s*({[^}]*})/)?.[1] || '');
+  const priceCA = parsePrice(legocom.match(/'CA':\s*({[^}]*})/)?.[1] || '');
+
   const retail = {};
-  if(s.LEGOCom?.US?.retailPrice) retail.US = s.LEGOCom.US.retailPrice;
-  if(s.LEGOCom?.UK?.retailPrice) retail.UK = s.LEGOCom.UK.retailPrice;
-  if(s.LEGOCom?.CA?.retailPrice) retail.CA = s.LEGOCom.CA.retailPrice;
-  if(s.LEGOCom?.DE?.retailPrice) retail.DE = s.LEGOCom.DE.retailPrice;
-  const exitDate = s.exitDate
-                || s.LEGOCom?.US?.dateLastAvailable
-                || s.LEGOCom?.UK?.dateLastAvailable
-                || s.LEGOCom?.DE?.dateLastAvailable || null;
+  if(priceUS) retail.US = priceUS;
+  if(priceUK) retail.UK = priceUK;
+  if(priceCA) retail.CA = priceCA;
+  if(priceDE) retail.DE = priceDE;
 
-  const result = { _src:'bs', set_num:s.number+'-1', name:s.name, num_parts:s.pieces||0,
-           year:s.year||null, theme_name:s.theme||null, subtheme:s.subtheme||null,
-           category:s.category||null, set_img_url:s.image?.imageURL||null,
-           price_retail:retail, exit_date:exitDate?exitDate.slice(0,10):null };
+  // Parse image URL
+  const imageStr = row['image'] || '';
+  const imageURL = imageStr.match(/imageURL['":\s]+'([^']+)'/)?.[1] || '';
 
-  // ── CACHE: guarda resultado para próxima vez ──
+  const exitDate = row['exitDate'] || null;
+
+  const result = {
+    _src: 'bs',
+    set_num: setNum + '-1',
+    name: row['name'] || null,
+    num_parts: parseInt(row['pieces']) || 0,
+    year: parseInt(row['year']) || null,
+    theme_name: row['theme'] || null,
+    subtheme: row['subtheme'] || null,
+    category: row['category'] || null,
+    set_img_url: imageURL || null,
+    price_retail: retail,
+    exit_date: exitDate ? exitDate.slice(0, 10) : null
+  };
+
+  // Save to Firestore cache
   if(uid){
     try{
       await db.collection('users').doc(uid)
               .collection('cache_brickset').doc(setNum).set(result);
-      console.log('[Brickset] cached:', setNum);
-    }catch(e){ console.warn('[Brickset] cache write error:', e); }
+    }catch(e){}
   }
 
   return result;
 }
+
+// Also expose checkBricksetKey - with CSV always returns valid
+async function checkBricksetKey(){
+  const db_csv = await loadBricksetDB();
+  return db_csv !== null;
+}
+
+
 async function checkBricksetKey(){
   if(!apiConfig.bs.key) return false;
   const targetUrl = `https://brickset.com/api/v3.asmx/checkKey?apiKey=${encodeURIComponent(apiConfig.bs.key)}`;
