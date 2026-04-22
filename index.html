@@ -211,8 +211,8 @@
     .lb.on{display:flex;}
     .lb-close{position:absolute;top:16px;right:16px;background:rgba(255,255,255,.15);border:none;color:#fff;font-size:22px;width:40px;height:40px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;}
     .lb-name{color:rgba(255,255,255,.75);font-size:12px;font-weight:600;text-align:center;padding:8px 24px;max-width:400px;}
-    .lb-img{flex:1;display:flex;align-items:center;justify-content:center;width:100%;padding:54px 16px 70px;min-height:0;overflow:hidden;}
-    .lb-img img{max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain;border-radius:8px;display:block;}
+    .lb-img{flex:1;width:100%;padding:54px 16px 70px;min-height:0;overflow:hidden;display:flex;}
+    .lb-img img{flex:1;width:100%;height:100%;object-fit:contain;border-radius:8px;display:block;}
     .lb-emoji{font-size:80px;}
     .lb-ctrl{display:flex;align-items:center;gap:16px;padding:8px 16px;}
     .lb-arr{background:rgba(255,255,255,.15);border:none;color:#fff;font-size:22px;width:44px;height:44px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;}
@@ -1982,14 +1982,17 @@ function sorted(list,srt,q){
 }
 function fmtDate(iso){return new Date(iso).toLocaleDateString('pt-PT',{day:'numeric',month:'long',year:'numeric'});}
 function getRetailDisplayPrice(s){
-  if(s.price_official) return null; // has manual price, no fallback needed
-  const r=s.price_retail||{};
-  const cc=s.currency||'€';
-  const sym={US:'$',UK:'£',CA:'CA\$','€':'€',DE:'€'};
-  const key=cc==='€'?'DE':cc;
-  const v=r[key];
-  if(v==null) return null;
-  return (sym[cc]||'')+parseFloat(v).toLocaleString('pt-PT',{minimumFractionDigits:2,maximumFractionDigits:2})+' *';
+  if(s.price_official) return null;
+  const r = s.price_retail || {};
+  const cc = s.currency || '€';
+  let sym = '€';
+  if(cc === 'US') sym = '$';
+  else if(cc === 'UK') sym = '£';
+  else if(cc === 'CA') sym = 'CA$';
+  const key = cc === '€' ? 'DE' : cc;
+  const v = r[key];
+  if(v == null) return null;
+  return sym + parseFloat(v).toLocaleString('pt-PT',{minimumFractionDigits:2,maximumFractionDigits:2}) + ' *';
 }
 
 function fmtEur(v){return v!=null?parseFloat(v).toLocaleString('pt-PT',{minimumFractionDigits:2,maximumFractionDigits:2})+' €':null;}
