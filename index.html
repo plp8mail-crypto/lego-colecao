@@ -212,7 +212,7 @@
     .lb-close{position:absolute;top:16px;right:16px;background:rgba(255,255,255,.15);border:none;color:#fff;font-size:22px;width:40px;height:40px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;}
     .lb-name{color:rgba(255,255,255,.75);font-size:12px;font-weight:600;text-align:center;padding:8px 24px;max-width:400px;}
     .lb-img{flex:1;display:flex;align-items:center;justify-content:center;width:100%;padding:54px 16px 10px;}
-    .lb-img img{max-width:100%;max-height:100%;object-fit:contain;border-radius:8px;}
+    .lb-img img{width:100%;height:100%;object-fit:contain;border-radius:8px;}
     .lb-emoji{font-size:80px;}
     .lb-ctrl{display:flex;align-items:center;gap:16px;padding:8px 16px;}
     .lb-arr{background:rgba(255,255,255,.15);border:none;color:#fff;font-size:22px;width:44px;height:44px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;}
@@ -443,7 +443,8 @@
       <div class="stats-bar" id="wish-sbar">
         <div class="sbar"><div class="sbar-num" id="w-sets">0</div><div class="sbar-label">Sets</div></div>
         <div class="sbar"><div class="sbar-num" id="w-pcs">0</div><div class="sbar-label">Peças</div></div>
-        <div class="sbar"><div class="sbar-num" id="w-ofic">—</div><div class="sbar-label">Valor oficial</div></div>
+        <div class="sbar"><div class="sbar-num" id="w-ofic">—</div><div class="sbar-label">Oficial €</div></div>
+        <div class="sbar"><div class="sbar-num" id="w-est">—</div><div class="sbar-label">Estimado €</div></div>
       </div>
       <div class="toolbar" id="wish-tb">
         <div class="toolbar-row">
@@ -549,12 +550,7 @@
             <button class="api-save-btn" onclick="saveApiKey('bs')">Guardar</button>
           </div>
           <div class="api-desc-sm">→ <a href="https://brickset.com/tools/webservices/requestkey" target="_blank">brickset.com</a> → Request API Key</div>
-          <div class="api-desc-sm" style="margin-top:8px;background:#e8f4fd;border-radius:8px;padding:8px 10px;font-size:11px;line-height:1.6;">
-            🔧 <strong>Proxy Firebase (recomendado):</strong> após fazer deploy da Cloud Function, cola aqui o URL para evitar bloqueios CORS/Cloudflare.<br>
-            <div style="display:flex;gap:6px;margin-top:6px;align-items:center;">
-              <input id="bs-fn-url" type="url" class="api-key-input" style="font-size:11px;flex:1;" placeholder="https://us-central1-lego-colecao.cloudfunctions.net/bricksetProxy"/>
-              <button class="api-save-btn" onclick="saveBsFunctionUrl()">Guardar</button>
-            </div>
+          
             <div id="bs-fn-status" style="margin-top:4px;font-size:11px;color:var(--green);"></div>
           </div>
         </div>
@@ -1245,7 +1241,7 @@ async function testApi(api){
       else errMsg+='verifica as 4 credenciais OAuth do Bricklink.';
       statusEl.textContent=errMsg;statusEl.className='api-status err';return;
     }
-    statusEl.textContent='✓ API a funcionar!';statusEl.className='api-status ok';
+    if(api !== 'bs') { statusEl.textContent='✓ API a funcionar!';statusEl.className='api-status ok'; }
     const fieldDefs=[
       {key:'set_num',label:'Número do set'},
       {key:'name',label:'Nome'},
@@ -1525,11 +1521,24 @@ function parseCSVLine(line){
   return result;
 }
 
+function parsePythonDict(s){
+  // Convert Python dict string to JSON-parseable string
+  if(!s || s.trim() === '{}' || s.trim() === 'None' || s.trim() === '') return {};
+  try {
+    // Replace Python True/False/None and single quotes
+    const json = s
+      .replace(/'/g, '"')
+      .replace(/\bTrue\b/g, 'true')
+      .replace(/\bFalse\b/g, 'false')
+      .replace(/\bNone\b/g, 'null');
+    return JSON.parse(json);
+  } catch(e) { return {}; }
+}
+
 function parsePrice(val){
   if(!val || val === '{}' || val === 'None' || val === '') return null;
-  // Try to extract price from dict-like string e.g. "{'retailPrice': 49.99}"
-  const m = val.match(/retailPrice['":\s]+([\d.]+)/);
-  return m ? parseFloat(m[1]) : null;
+  const d = parsePythonDict(val);
+  return d.retailPrice != null ? parseFloat(d.retailPrice) : null;
 }
 
 async function lookupBrickset(num){
@@ -1555,12 +1564,13 @@ async function lookupBrickset(num){
   const row = db_csv[setNum];
   if(!row) return null;
 
-  // Parse LEGOCom prices from CSV string representation
-  const legocom = row['LEGOCom'] || '';
-  const priceDE = parsePrice(legocom.match(/'DE':\s*({[^}]*})/)?.[1] || '');
-  const priceUS = parsePrice(legocom.match(/'US':\s*({[^}]*})/)?.[1] || '');
-  const priceUK = parsePrice(legocom.match(/'UK':\s*({[^}]*})/)?.[1] || '');
-  const priceCA = parsePrice(legocom.match(/'CA':\s*({[^}]*})/)?.[1] || '');
+  // Parse LEGOCom prices from CSV Python dict string
+  const legocomRaw = row['LEGOCom'] || '';
+  const legocom = parsePythonDict(legocomRaw);
+  const priceUS = legocom.US?.retailPrice ? parseFloat(legocom.US.retailPrice) : null;
+  const priceUK = legocom.UK?.retailPrice ? parseFloat(legocom.UK.retailPrice) : null;
+  const priceCA = legocom.CA?.retailPrice ? parseFloat(legocom.CA.retailPrice) : null;
+  const priceDE = legocom.DE?.retailPrice ? parseFloat(legocom.DE.retailPrice) : null;
 
   const retail = {};
   if(priceUS) retail.US = priceUS;
@@ -1572,7 +1582,10 @@ async function lookupBrickset(num){
   const imageStr = row['image'] || '';
   const imageURL = imageStr.match(/imageURL['":\s]+'([^']+)'/)?.[1] || '';
 
-  const exitDate = row['exitDate'] || null;
+  const exitDate = row['exitDate'] ||
+    legocom.US?.dateLastAvailable ||
+    legocom.UK?.dateLastAvailable ||
+    legocom.DE?.dateLastAvailable || null;
 
   const result = {
     _src: 'bs',
@@ -2089,9 +2102,11 @@ function renderWish(){
   const list=sorted(wishlist,srt,q);
   const tp=wishlist.reduce((a,s)=>a+(s.num_parts||0),0);
   const to=wishlist.reduce((a,s)=>a+(s.price_official||0),0);
+  const te=wishlist.reduce((a,s)=>a+(s.price_estimated||0),0);
   document.getElementById('w-sets').textContent=wishlist.length;
   document.getElementById('w-pcs').textContent=tp.toLocaleString('pt-PT');
   document.getElementById('w-ofic').textContent=to>0?to.toLocaleString('pt-PT',{maximumFractionDigits:0})+'€':'—';
+  document.getElementById('w-est').textContent=te>0?te.toLocaleString('pt-PT',{maximumFractionDigits:0})+'€':'—';
   document.getElementById('wish-sbar').classList.toggle('on',wishlist.length>0);
   document.getElementById('wish-tb').classList.toggle('on',wishlist.length>0);
   const sec=document.getElementById('wish-sec'); sec.classList.toggle('on',wishlist.length>0);
@@ -2160,7 +2175,7 @@ function exportCSV(listKey){
   const csv=[h.join(','),...rows].join('\n');
   const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'});
   const url=URL.createObjectURL(blob);
-  const a=document.createElement('a'); a.href=url; a.download=`lego-${listKey}-${new Date().toISOString().slice(0,10)}.csv`; a.click();
+  const a=document.createElement('a'); a.href=url; a.download=`LEGO_BD_OUT_${listKey}_${new Date().toISOString().slice(0,10)}.csv`; a.click();
   URL.revokeObjectURL(url); toast('✓ CSV exportado!');
 }
 
@@ -2212,7 +2227,7 @@ tr:hover td{background:#fafafa;}
 
   const blob=new Blob([html],{type:'text/html;charset=utf-8;'});
   const url=URL.createObjectURL(blob);
-  const a=document.createElement('a'); a.href=url; a.download=`lego-${listKey}-${new Date().toISOString().slice(0,10)}.html`; a.click();
+  const a=document.createElement('a'); a.href=url; a.download=`LEGO_BD_OUT_${listKey}_${new Date().toISOString().slice(0,10)}.html`; a.click();
   URL.revokeObjectURL(url); toast('✓ HTML exportado!');
 }
 
