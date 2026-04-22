@@ -211,8 +211,8 @@
     .lb.on{display:flex;}
     .lb-close{position:absolute;top:16px;right:16px;background:rgba(255,255,255,.15);border:none;color:#fff;font-size:22px;width:40px;height:40px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;}
     .lb-name{color:rgba(255,255,255,.75);font-size:12px;font-weight:600;text-align:center;padding:8px 24px;max-width:400px;}
-    .lb-img{flex:1;display:flex;align-items:center;justify-content:center;width:100%;padding:54px 16px 10px;}
-    .lb-img img{width:100%;height:100%;object-fit:contain;border-radius:8px;}
+    .lb-img{flex:1;display:flex;align-items:center;justify-content:center;width:100%;height:100%;padding:54px 16px 10px;min-height:0;}
+    .lb-img img{max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain;border-radius:8px;}
     .lb-emoji{font-size:80px;}
     .lb-ctrl{display:flex;align-items:center;gap:16px;padding:8px 16px;}
     .lb-arr{background:rgba(255,255,255,.15);border:none;color:#fff;font-size:22px;width:44px;height:44px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;}
@@ -1990,6 +1990,12 @@ function cardHTML(s,listKey,isWish){
   slides+=`<div class="gadd" onclick="addPhotoCard('${s.set_num}','${listKey}')"><span>📷</span>Adicionar foto</div>`;
   const dots=imgs.length>1?`<div class="gdots">${imgs.map((_,i)=>`<div class="dot${i===0?' active':''}"></div>`).join('')}</div>`:'';
   const of=fmtEur(s.price_official), pa=fmtEur(s.price_paid), es=fmtEur(s.price_estimated);
+  // Retail price fallback for Oficial LEGO field
+  const _r=s.price_retail||{}, _cc=s.currency||'€';
+  const _sym={US:'$',UK:'£',CA:'CA$','€':'€',DE:'€'};
+  const _rk=_cc==='€'?'DE':_cc;
+  const _rv=_r[_rk];
+  const ofRetail=_rv!=null?(_sym[_cc]||'')+parseFloat(_rv).toLocaleString('pt-PT',{minimumFractionDigits:2,maximumFractionDigits:2})+' *':'—';
 
   // Year: show as MM-AAAA if we have month info, otherwise just year
   const yearDisplay = s.year_month ? s.year_month
@@ -2047,14 +2053,7 @@ function cardHTML(s,listKey,isWish){
         </div>
         <div class="pcell" style="flex:1;" onclick="startPrice(this,'${listKey}','${s.set_num}','price_official','${s.price_official??''}')">
           <div class="plabel">Oficial LEGO</div>
-          <div class="pval ${!of?'empty':''}">${of||(()=>{
-            const r=s.price_retail||{};
-            const cc=s.currency||'€';
-            const sym={US:'$',UK:'£',CA:'CA$','€':'€',DE:'€'};
-            const key=cc==='€'?'DE':cc;
-            const v=r[key];
-            return v!=null?(sym[cc]||'')+parseFloat(v).toLocaleString('pt-PT',{minimumFractionDigits:2,maximumFractionDigits:2})+' *':'—';
-          })()}</div>
+          <div class="pval ${!of?'empty':''}">${of||ofRetail}</div>
         </div>
         <div class="pcell" style="flex:1;" onclick="startPrice(this,'${listKey}','${s.set_num}','price_paid','${s.price_paid??''}')">
           <div class="plabel">Paguei</div>
