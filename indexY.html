@@ -1,0 +1,2353 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+  <meta name="theme-color" content="#e3000b"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+  <meta name="apple-mobile-web-app-title" content="LEGO Coleção"/>
+  <meta name="mobile-web-app-capable" content="yes"/>
+  <link rel="manifest" id="manifest-link"/>
+  <link rel="apple-touch-icon" id="apple-icon"/>
+  <title>LEGO – A minha coleção</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800;900&family=DM+Mono:wght@500&display=swap" rel="stylesheet"/>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --red:#e3000b; --yellow:#FFD700; --blue:#0057a8;
+      --bg:#f2f2f7; --surface:#fff; --border:#e4e4e4;
+      --text:#1a1a1a; --muted:#999; --muted2:#bbb;
+      --green:#1a7a3c; --green-bg:#eaf5ee; --green-border:#b2dfc1;
+      --wish:#0057a8; --wish-bg:#eaf0fb; --wish-border:#b0c8ef;
+      --shadow:0 2px 10px rgba(0,0,0,.06);
+      --tab-h:62px;
+    }
+    html,body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min-height:100vh;-webkit-tap-highlight-color:transparent;overscroll-behavior:none;}
+    .app{max-width:480px;margin:0 auto;min-height:100vh;}
+
+    /* SPLASH */
+    .splash{position:fixed;inset:0;background:var(--red);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;z-index:1000;transition:opacity .4s;}
+    .splash.hidden{opacity:0;pointer-events:none;}
+    .splash-logo{background:var(--yellow);color:#000;font-weight:900;font-size:36px;padding:8px 22px;border-radius:8px;letter-spacing:2px;}
+    .splash-spinner{width:28px;height:28px;border:3px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .8s linear infinite;}
+    .splash-text{color:rgba(255,255,255,.85);font-size:14px;font-weight:600;}
+    @keyframes spin{to{transform:rotate(360deg);}}
+
+    /* LOGIN */
+    .login-screen{position:fixed;inset:0;background:var(--red);display:none;flex-direction:column;align-items:center;justify-content:center;gap:18px;z-index:900;padding:32px;}
+    .login-screen.on{display:flex;}
+    .login-logo{background:var(--yellow);color:#000;font-weight:900;font-size:36px;padding:8px 22px;border-radius:8px;letter-spacing:2px;}
+    .login-title{color:#fff;font-size:22px;font-weight:800;text-align:center;}
+    .login-sub{color:rgba(255,255,255,.75);font-size:13px;text-align:center;line-height:1.6;max-width:300px;}
+    .login-form{width:100%;max-width:320px;display:flex;flex-direction:column;gap:10px;}
+    .login-email{width:100%;background:rgba(255,255,255,.15);border:1.5px solid rgba(255,255,255,.3);border-radius:12px;color:#fff;padding:14px 16px;font-size:16px;font-family:'DM Sans',sans-serif;outline:none;}
+    .login-email::placeholder{color:rgba(255,255,255,.5);}
+    .login-email:focus{border-color:rgba(255,255,255,.7);}
+    .login-btn{background:var(--yellow);color:#000;border:none;border-radius:12px;padding:14px;font-size:16px;font-weight:800;font-family:'DM Sans',sans-serif;cursor:pointer;transition:transform .1s;}
+    .login-btn:active{transform:scale(.97);}
+    .login-btn:disabled{opacity:.7;cursor:not-allowed;}
+    .login-password{width:100%;background:rgba(255,255,255,.15);border:1.5px solid rgba(255,255,255,.3);border-radius:12px;color:#fff;padding:14px 16px;font-size:16px;font-family:'DM Sans',sans-serif;outline:none;}
+    .login-password::placeholder{color:rgba(255,255,255,.5);}
+    .login-password:focus{border-color:rgba(255,255,255,.7);}
+    .login-toggle{background:none;border:none;color:rgba(255,255,255,.7);font-size:12px;font-family:'DM Sans',sans-serif;cursor:pointer;text-decoration:underline;text-align:center;}
+    .login-sent{background:rgba(255,255,255,.15);border-radius:14px;padding:22px;text-align:center;color:#fff;width:100%;max-width:320px;display:none;}
+    .login-sent.on{display:block;}
+    .login-sent-icon{font-size:44px;margin-bottom:10px;}
+    .login-sent-title{font-size:16px;font-weight:800;margin-bottom:8px;}
+    .login-sent-sub{font-size:13px;color:rgba(255,255,255,.8);line-height:1.6;}
+    .login-error{color:#ffcccc;font-size:13px;font-weight:600;text-align:center;display:none;}
+    .login-error.on{display:block;}
+    /* Password recovery & change modal */
+    .pw-modal{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center;z-index:1100;padding:20px;}
+    .pw-modal.on{display:flex;}
+    .pw-box{background:var(--surface);border-radius:18px;padding:22px;width:100%;max-width:400px;max-height:90vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,.2);}
+    .pw-title{font-size:16px;font-weight:800;margin-bottom:6px;}
+    .pw-sub{font-size:13px;color:var(--muted);margin-bottom:16px;line-height:1.5;}
+    .pw-input{width:100%;background:var(--bg);border:1.5px solid var(--border);border-radius:10px;color:var(--text);padding:12px 14px;font-size:14px;font-family:'DM Sans',sans-serif;outline:none;margin-bottom:10px;}
+    .pw-input:focus{border-color:var(--red);}
+    .pw-btn{width:100%;background:var(--red);color:#fff;border:none;border-radius:10px;padding:13px;font-size:14px;font-weight:800;font-family:'DM Sans',sans-serif;cursor:pointer;margin-bottom:8px;}
+    .pw-cancel{width:100%;background:none;border:1.5px solid var(--border);border-radius:10px;padding:12px;font-size:13px;font-weight:700;font-family:'DM Sans',sans-serif;cursor:pointer;color:var(--muted);}
+    .pw-ok{color:var(--green);font-size:13px;font-weight:700;text-align:center;display:none;margin-top:8px;}
+    .pw-ok.on{display:block;}
+    .pw-err{color:var(--red);font-size:12px;font-weight:600;text-align:center;display:none;margin-top:4px;}
+    .pw-err.on{display:block;}
+
+    /* HEADER */
+    .header{background:var(--red);padding:16px 16px 14px;position:sticky;top:0;z-index:100;box-shadow:0 4px 20px rgba(227,0,11,.35);}
+    .logo-row{display:flex;align-items:center;gap:8px;margin-bottom:12px;}
+    .logo-box{background:var(--yellow);color:#000;font-weight:900;font-size:17px;padding:3px 9px;border-radius:4px;letter-spacing:1px;}
+    .logo-text{color:#fff;font-weight:700;font-size:15px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+    .header-btns{display:flex;gap:6px;align-items:center;flex-shrink:0;}
+    .sync-dot{width:8px;height:8px;border-radius:50%;background:#4caf50;flex-shrink:0;transition:background .3s;}
+    .sync-dot.syncing{background:var(--yellow);animation:blink .8s infinite;}
+    .sync-dot.offline{background:#f44336;}
+    @keyframes blink{0%,100%{opacity:1;}50%{opacity:.3;}}
+    .header-btns{display:flex;gap:5px;align-items:center;flex-shrink:0;}
+    .hdr-action{background:rgba(255,255,255,.2);border:none;color:#fff;font-size:11px;font-family:'DM Sans',sans-serif;font-weight:700;padding:5px 9px;border-radius:8px;cursor:pointer;white-space:nowrap;transition:background .15s;display:flex;align-items:center;gap:3px;}
+    .hdr-action:active{background:rgba(255,255,255,.35);}
+    .hdr-action svg{flex-shrink:0;}
+    .avatar{width:28px;height:28px;border-radius:50%;border:2px solid rgba(255,255,255,.5);object-fit:cover;cursor:pointer;background:rgba(255,255,255,.3);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:#fff;overflow:hidden;flex-shrink:0;}
+    .avatar img{width:100%;height:100%;object-fit:cover;border-radius:50%;}
+    .avatar-initials{font-size:11px;font-weight:800;color:#fff;line-height:1;}
+    .search-row{display:flex;gap:8px;}
+    #set-input{flex:1;background:rgba(255,255,255,.18);border:1.5px solid rgba(255,255,255,.28);border-radius:10px;color:#fff;padding:11px 14px;font-size:15px;font-family:'DM Sans',sans-serif;outline:none;}
+    #set-input::placeholder{color:rgba(255,255,255,.45);}
+    #set-input:focus{border-color:rgba(255,255,255,.6);}
+    #add-btn{background:var(--yellow);color:#000;border:none;border-radius:10px;padding:11px 16px;font-weight:800;font-size:14px;font-family:'DM Sans',sans-serif;cursor:pointer;transition:transform .1s;display:flex;align-items:center;justify-content:center;min-width:70px;}
+    #add-btn:active{transform:scale(.95);}
+    #add-btn:disabled{opacity:.75;cursor:not-allowed;}
+    .hint{color:rgba(255,255,255,.8);font-size:12px;font-weight:500;margin-top:8px;display:none;}
+    .hint.on{display:block;}
+    .spinner-sm{width:15px;height:15px;border:2.5px solid rgba(0,0,0,.15);border-top-color:#000;border-radius:50%;animation:spin .7s linear infinite;display:inline-block;}
+
+    /* API KEY */
+    .api-modal{position:fixed;inset:0;background:rgba(0,0,0,.5);display:none;align-items:center;justify-content:center;z-index:400;padding:20px;}
+    .api-modal.on{display:flex;}
+    .api-box{background:var(--surface);border-radius:18px;padding:24px;width:100%;max-width:420px;box-shadow:0 8px 32px rgba(0,0,0,.2);}
+    .api-title{font-size:16px;font-weight:800;margin-bottom:6px;}
+    .api-desc{font-size:13px;color:var(--muted);margin-bottom:16px;line-height:1.65;}
+    .api-desc a{color:var(--red);}
+    .api-row{display:flex;gap:8px;}
+    #api-input{flex:1;background:var(--bg);border:1.5px solid var(--border);border-radius:10px;color:var(--text);padding:11px 12px;font-size:13px;font-family:'DM Mono',monospace;outline:none;}
+    #api-btn{background:var(--red);color:#fff;border:none;border-radius:10px;padding:11px 16px;font-weight:700;font-size:13px;font-family:'DM Sans',sans-serif;cursor:pointer;white-space:nowrap;}
+
+    /* TABS */
+    .tab-bar{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:480px;background:var(--surface);border-top:1px solid var(--border);display:none;z-index:200;box-shadow:0 -2px 12px rgba(0,0,0,.08);height:var(--tab-h);}
+    .tab-bar.on{display:flex;}
+    .tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;cursor:pointer;border:none;background:none;font-family:'DM Sans',sans-serif;color:var(--muted);font-size:10px;font-weight:600;transition:color .15s;padding:8px 0;}
+    .tab.active{color:var(--red);}
+    .tab-icon{width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-size:22px;line-height:1;}
+
+    /* PANELS */
+    .panel{display:none;padding:14px 12px calc(var(--tab-h) + 16px);}
+    .panel.active{display:block;}
+
+    /* STATS BAR */
+    .stats-bar{display:none;gap:8px;margin-bottom:14px;}
+    .stats-bar.on{display:flex;}
+    .sbar{flex:1;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:11px 6px;text-align:center;box-shadow:var(--shadow);}
+    .sbar-num{font-size:18px;font-weight:900;color:var(--red);line-height:1;}
+    .sbar-label{font-size:9px;color:var(--muted);margin-top:3px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;}
+
+    /* TOOLBAR */
+    .toolbar{display:none;flex-direction:column;gap:8px;margin-bottom:12px;}
+    .toolbar.on{display:flex;}
+    .toolbar-row{display:flex;gap:8px;align-items:center;}
+    .sw{position:relative;flex:1;}
+    .si{position:absolute;left:11px;top:50%;transform:translateY(-50%);font-size:14px;pointer-events:none;}
+    .fi{width:100%;background:var(--surface);border:1.5px solid var(--border);border-radius:10px;color:var(--text);padding:10px 14px 10px 34px;font-size:14px;font-family:'DM Sans',sans-serif;outline:none;}
+    .ss{background:var(--surface);border:1.5px solid var(--border);border-radius:10px;color:var(--text);padding:10px;font-size:12px;font-family:'DM Sans',sans-serif;font-weight:600;outline:none;cursor:pointer;}
+    .tb{background:var(--surface);border:1.5px solid var(--border);border-radius:10px;color:var(--text);padding:10px 13px;font-size:12px;font-weight:700;font-family:'DM Sans',sans-serif;cursor:pointer;white-space:nowrap;}
+
+    .sec-t{font-size:11px;color:var(--muted);font-weight:700;letter-spacing:.8px;text-transform:uppercase;margin-bottom:8px;display:none;}
+    .sec-t.on{display:block;}
+
+    /* EMPTY */
+    .empty{text-align:center;padding:50px 20px;}
+    .empty-icon{font-size:52px;margin-bottom:12px;display:block;}
+    .empty-title{font-size:15px;font-weight:700;color:#bbb;margin-bottom:5px;}
+    .empty-sub{font-size:13px;color:#ccc;line-height:1.6;}
+    .no-res{text-align:center;padding:30px 20px;color:var(--muted);font-size:14px;font-weight:600;}
+
+    /* CARD */
+    .card{background:var(--surface);border-radius:16px;border:1px solid var(--border);margin-bottom:10px;overflow:hidden;box-shadow:var(--shadow);animation:fadeIn .3s ease;}
+    @keyframes fadeIn{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
+
+    /* gallery */
+    .gal{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;border-bottom:1px solid var(--border);background:#f7f7f7;height:180px;}
+    .gal::-webkit-scrollbar{display:none;}
+    .gslide{scroll-snap-align:start;flex-shrink:0;width:100%;height:180px;display:flex;align-items:center;justify-content:center;font-size:40px;cursor:pointer;position:relative;}
+    .gslide img{width:100%;height:180px;object-fit:contain;padding:10px;display:block;}
+    .photo-badge{position:absolute;top:8px;right:8px;background:rgba(0,0,0,.45);color:#fff;font-size:10px;font-weight:700;padding:3px 7px;border-radius:20px;}
+    .gdots{display:flex;justify-content:center;gap:5px;padding:5px 0;background:#f7f7f7;}
+    .dot{width:6px;height:6px;border-radius:50%;background:var(--muted2);}
+    .dot.active{background:var(--red);}
+    .gadd{scroll-snap-align:start;flex-shrink:0;width:100%;height:180px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;cursor:pointer;color:var(--muted);font-size:13px;font-weight:600;background:#f0f0f0;}
+    .gadd span{font-size:36px;}
+    .gupload{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.35);color:#fff;font-size:13px;font-weight:700;gap:6px;opacity:0;transition:opacity .2s;}
+    .gslide:hover .gupload{opacity:1;}
+
+    /* card body */
+    .cb{padding:10px 12px 6px;}
+    .ctop{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:4px;}
+    .cinfo{flex:1;min-width:0;}
+    .cnum{font-size:10px;color:var(--muted2);font-weight:600;font-family:'DM Mono',monospace;margin-bottom:2px;}
+    .cname{font-size:14px;font-weight:700;line-height:1.3;color:var(--text);}
+    .dbtn{background:none;border:none;color:var(--muted2);font-size:18px;cursor:pointer;padding:2px 4px;line-height:1;}
+    .dbtn:hover{color:var(--red);}
+    .badges{display:flex;gap:4px;flex-wrap:wrap;margin:6px 0 8px;}
+    .badge{font-size:10px;padding:2px 7px;border-radius:20px;font-weight:600;background:#f0f0f0;color:#888;}
+    .badge-g{font-size:10px;padding:2px 7px;border-radius:20px;font-weight:700;background:var(--green-bg);color:var(--green);border:1px solid var(--green-border);}
+    .badge-w{font-size:10px;padding:2px 7px;border-radius:20px;font-weight:700;background:var(--wish-bg);color:var(--wish);border:1px solid var(--wish-border);}
+
+    /* prices */
+    .pgrid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;margin-bottom:8px;}
+    .pcell{background:var(--bg);border-radius:10px;padding:6px 8px 5px;cursor:pointer;transition:background .15s;display:flex;flex-direction:column;justify-content:flex-start;height:50px;}
+    .pcell:hover{background:#e8e8ee;}
+    .plabel{font-size:9px;color:var(--muted);font-weight:700;letter-spacing:.3px;text-transform:uppercase;text-align:left;line-height:1;margin-bottom:4px;flex-shrink:0;}
+    .pval{font-size:12.5px;font-weight:800;color:var(--text);text-align:right;line-height:1;flex:1;display:flex;align-items:flex-end;justify-content:flex-end;}
+    .pval.empty{color:var(--muted2);font-weight:500;font-size:11px;}
+    .pinput{width:100%;border:none;background:transparent;font-size:12.5px;font-weight:800;color:var(--text);font-family:'DM Sans',sans-serif;outline:none;padding:0;text-align:right;}
+    .phint{display:none;}
+
+    /* currency cell — same height as pcell */
+    .ccell{background:var(--bg);border-radius:10px;padding:6px 8px 5px;display:flex;flex-direction:column;justify-content:flex-start;height:50px;min-width:52px;}
+    .ccell-label{font-size:9px;color:var(--muted);font-weight:700;letter-spacing:.3px;text-transform:uppercase;line-height:1;margin-bottom:4px;}
+    .ccell-select{border:none;background:transparent;font-size:12.5px;font-weight:800;color:var(--blue);font-family:'DM Sans',sans-serif;outline:none;cursor:pointer;padding:0;-webkit-appearance:auto;}
+    .cdate{font-size:10px;color:var(--muted2);padding-bottom:8px;}
+    .wbtn{display:block;width:100%;background:var(--green-bg);border:none;border-top:1px solid var(--green-border);color:var(--green);font-size:12px;font-weight:700;font-family:'DM Sans',sans-serif;padding:9px;text-align:center;cursor:pointer;}
+
+    /* photo uploading overlay */
+    .uploading-bar{display:none;align-items:center;gap:8px;padding:6px 12px;background:#fff8e1;border-bottom:1px solid #ffe082;font-size:12px;font-weight:600;color:#7a5c00;}
+    .uploading-bar.on{display:flex;}
+
+    /* LIGHTBOX */
+    .lb{display:none;position:fixed;inset:0;background:rgba(0,0,0,.94);z-index:500;flex-direction:column;align-items:center;justify-content:center;}
+    .lb.on{display:flex;}
+    .lb-close{position:absolute;top:16px;right:16px;background:rgba(255,255,255,.15);border:none;color:#fff;font-size:22px;width:40px;height:40px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+    .lb-name{color:rgba(255,255,255,.75);font-size:12px;font-weight:600;text-align:center;padding:8px 24px;max-width:400px;}
+    .lb-img{flex:1;display:flex;align-items:center;justify-content:center;width:100%;padding:54px 16px 10px;}
+    .lb-img img{max-width:100%;max-height:100%;object-fit:contain;border-radius:8px;}
+    .lb-emoji{font-size:80px;}
+    .lb-ctrl{display:flex;align-items:center;gap:16px;padding:8px 16px;}
+    .lb-arr{background:rgba(255,255,255,.15);border:none;color:#fff;font-size:22px;width:44px;height:44px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+    .lb-arr:disabled{opacity:.25;cursor:not-allowed;}
+    .lb-cnt{color:rgba(255,255,255,.7);font-size:13px;font-weight:600;flex:1;text-align:center;}
+    .lb-acts{display:flex;gap:10px;padding:0 16px 32px;justify-content:center;flex-wrap:wrap;}
+    .lb-add{background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;font-size:12px;font-weight:700;font-family:'DM Sans',sans-serif;padding:9px 16px;border-radius:20px;cursor:pointer;}
+    .lb-del{background:rgba(227,0,11,.35);border:1px solid rgba(227,0,11,.5);color:#fff;font-size:12px;font-weight:700;font-family:'DM Sans',sans-serif;padding:9px 16px;border-radius:20px;cursor:pointer;}
+
+    /* USER MENU */
+    .umenu{position:fixed;top:0;right:0;bottom:0;width:280px;background:var(--surface);z-index:600;box-shadow:-4px 0 20px rgba(0,0,0,.15);transform:translateX(100%);transition:transform .25s ease;display:flex;flex-direction:column;}
+    .umenu.on{transform:translateX(0);}
+    .umenu-overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:599;display:none;}
+    .umenu-overlay.on{display:block;}
+    .umenu-header{background:var(--red);padding:48px 20px 20px;}
+    .umenu-avatar{width:52px;height:52px;border-radius:50%;border:3px solid rgba(255,255,255,.5);object-fit:cover;margin-bottom:10px;}
+    .umenu-name{color:#fff;font-size:16px;font-weight:800;}
+    .umenu-email{color:rgba(255,255,255,.75);font-size:12px;margin-top:2px;}
+    .umenu-body{flex:1;padding:16px;}
+    .umenu-item{display:flex;align-items:center;gap:12px;padding:14px 12px;border-radius:12px;cursor:pointer;font-size:14px;font-weight:600;color:var(--text);border:none;background:none;width:100%;font-family:'DM Sans',sans-serif;transition:background .15s;}
+    .umenu-item:hover{background:var(--bg);}
+    .umenu-item.danger{color:var(--red);}
+    .umenu-sep{height:1px;background:var(--border);margin:8px 0;}
+
+    /* STATS PAGE */
+    .scards{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px;}
+    .scard{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px 12px;box-shadow:var(--shadow);text-align:center;}
+    .scard-num{font-size:22px;font-weight:900;color:var(--red);line-height:1;margin-bottom:4px;}
+    .scard-label{font-size:11px;color:var(--muted);font-weight:600;}
+    .cbox{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px;box-shadow:var(--shadow);margin-bottom:14px;}
+    .ctitle{font-size:13px;font-weight:700;margin-bottom:14px;}
+    .cwrap{position:relative;height:220px;}
+
+    /* TOAST */
+    .toast{position:fixed;bottom:calc(var(--tab-h) + 12px);left:50%;transform:translateX(-50%);padding:11px 20px;border-radius:30px;font-weight:700;font-size:13px;color:#fff;z-index:700;box-shadow:0 6px 24px rgba(0,0,0,.2);white-space:nowrap;max-width:90vw;text-align:center;animation:toastIn .3s ease;pointer-events:none;font-family:'DM Sans',sans-serif;}
+    @keyframes toastIn{from{opacity:0;transform:translateX(-50%) translateY(10px);}to{opacity:1;transform:translateX(-50%) translateY(0);}}
+    .tok{background:#1a7a3c;} .terr{background:#c0000a;}
+
+    /* retail prices row */
+
+    /* extra info row */
+    .info-row{display:flex;gap:5px;margin-bottom:6px;align-items:stretch;}
+    .info-cell{flex:1;background:var(--bg);border-radius:8px;padding:5px 8px;cursor:pointer;transition:background .15s;}
+    .info-cell:hover{background:#e8e8ee;}
+    .info-label{font-size:9px;color:var(--muted);font-weight:700;letter-spacing:.4px;text-transform:uppercase;margin-bottom:1px;}
+    .info-val{font-size:12.5px;font-weight:700;color:var(--text);}
+    .info-val.empty{color:var(--muted2);font-weight:500;font-size:10px;}
+    .info-input{width:100%;border:none;background:transparent;font-size:12.5px;font-weight:700;color:var(--text);font-family:'DM Sans',sans-serif;outline:none;padding:0;}
+
+    /* currency selector on card */
+    .cur-sel{width:100%;border:none;background:transparent;font-size:11px;font-weight:700;color:var(--blue);font-family:'DM Sans',sans-serif;outline:none;cursor:pointer;padding:0;}
+
+    /* SETTINGS TAB */
+    .settings-section{background:var(--surface);border-radius:16px;border:1px solid var(--border);padding:16px;margin-bottom:14px;box-shadow:var(--shadow);}
+    .settings-title{font-size:14px;font-weight:800;margin-bottom:4px;display:flex;align-items:center;gap:8px;}
+    .settings-sub{font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.5;}
+    .field-matrix{width:100%;border-collapse:collapse;}
+    .field-matrix th{font-size:10px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;padding:6px 8px;text-align:center;border-bottom:2px solid var(--border);}
+    .field-matrix th:first-child{text-align:left;}
+    .field-matrix td{padding:7px 8px;border-bottom:1px solid var(--border);font-size:13px;font-weight:600;vertical-align:middle;}
+    .field-matrix td:not(:first-child){text-align:center;}
+    .field-matrix tr:last-child td{border-bottom:none;}
+    .fm-api{display:flex;align-items:center;justify-content:center;}
+    .fm-radio{appearance:none;width:18px;height:18px;border:2px solid var(--border);border-radius:50%;cursor:pointer;transition:all .15s;position:relative;flex-shrink:0;}
+    .fm-radio:checked{border-color:var(--red);background:var(--red);}
+    .fm-radio:checked::after{content:'';position:absolute;top:3px;left:3px;width:8px;height:8px;background:#fff;border-radius:50%;}
+    .fm-na{width:18px;height:18px;display:flex;align-items:center;justify-content:center;color:var(--muted2);font-size:12px;}
+    .fm-row-label{color:var(--text);font-weight:600;}
+    .fm-row-label small{display:block;font-size:10px;color:var(--muted);font-weight:500;margin-top:1px;}
+    .api-badge{display:inline-block;font-size:9px;font-weight:800;padding:1px 5px;border-radius:6px;vertical-align:middle;}
+    .api-badge.rb{background:#fff3e0;color:#e65100;}
+    .api-badge.bs{background:#e8f5e9;color:#2e7d32;}
+    .api-badge.bl{background:#e3f2fd;color:#1565c0;}
+    .settings-save{width:100%;background:var(--red);color:#fff;border:none;border-radius:10px;padding:12px;font-size:14px;font-weight:800;font-family:'DM Sans',sans-serif;cursor:pointer;margin-top:10px;}
+
+    /* MULTI-API CONFIG in Settings */
+    .api-config-section{border-top:1px solid var(--border);margin-top:14px;padding-top:14px;}
+    .api-toggle-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
+    .api-toggle-label{font-size:13px;font-weight:700;display:flex;align-items:center;gap:6px;}
+    .api-toggle{position:relative;display:inline-block;width:40px;height:22px;flex-shrink:0;}
+    .api-toggle input{opacity:0;width:0;height:0;}
+    .api-toggle-slider{position:absolute;cursor:pointer;inset:0;background:#ccc;border-radius:22px;transition:.2s;}
+    .api-toggle-slider:before{position:absolute;content:'';height:16px;width:16px;left:3px;bottom:3px;background:white;border-radius:50%;transition:.2s;}
+    .api-toggle input:checked+.api-toggle-slider{background:var(--red);}
+    .api-toggle input:checked+.api-toggle-slider:before{transform:translateX(18px);}
+    .api-key-row{display:flex;gap:6px;margin-bottom:6px;}
+    .api-key-input{flex:1;background:var(--bg);border:1.5px solid var(--border);border-radius:8px;color:var(--text);padding:9px 10px;font-size:12px;font-family:'DM Mono',monospace;outline:none;}
+    .api-key-input:focus{border-color:var(--red);}
+    .api-save-btn{background:var(--red);color:#fff;border:none;border-radius:8px;padding:9px 12px;font-weight:700;font-size:12px;font-family:'DM Sans',sans-serif;cursor:pointer;white-space:nowrap;}
+    .api-status{font-size:11px;color:var(--muted);margin-bottom:4px;}
+    .api-status.ok{color:var(--green);}
+    .api-status.err{color:var(--red);}
+    .api-status.testing{color:var(--blue);}
+    .api-test-btn{background:none;border:1.5px solid var(--border);border-radius:8px;padding:5px 10px;font-size:11px;font-weight:700;font-family:'DM Sans',sans-serif;cursor:pointer;color:var(--muted);transition:all .15s;}
+    .api-test-btn:hover{border-color:var(--blue);color:var(--blue);}
+    .api-fields-list{font-size:11px;color:var(--muted);margin-top:6px;line-height:1.7;padding:8px 10px;background:var(--bg);border-radius:8px;display:none;}
+    .api-fields-list.on{display:block;}
+    .api-field-row{display:flex;align-items:center;gap:6px;}
+    .api-field-ok{color:var(--green);font-weight:700;}
+    .api-field-empty{color:#bbb;}
+    .api-desc-sm{font-size:11px;color:var(--muted);line-height:1.5;margin-bottom:6px;}
+    .api-desc-sm a{color:var(--red);}
+
+    /* estimated date & update overlay */
+    .est-date{font-size:10px;color:var(--muted2);margin-top:2px;text-align:right;}
+    .updating-overlay{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:800;display:none;align-items:center;justify-content:center;}
+    .updating-overlay.on{display:flex;}
+    .updating-box{background:#fff;border-radius:16px;padding:24px 28px;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,.2);}
+    .updating-box .spinner-sm{width:24px;height:24px;border-width:3px;margin:0 auto 10px;}
+    .updating-msg{font-size:14px;font-weight:700;color:var(--text);}
+
+    #photo-input{display:none;}
+  </style>
+</head>
+<body>
+
+<!-- SPLASH -->
+<div class="splash" id="splash">
+  <div class="splash-logo">LEGO</div>
+  <div class="splash-spinner"></div>
+  <div class="splash-text" id="splash-text">A carregar…</div>
+</div>
+
+<!-- LOGIN -->
+<div class="login-screen" id="login-screen">
+  <div class="login-logo">LEGO</div>
+  <div class="login-title">A minha coleção</div>
+  <div class="login-sub" id="login-sub">Entra com o teu email e senha.</div>
+  <div class="login-form" id="login-form">
+    <input class="login-email" id="login-email" type="email" placeholder="o teu email…" autocomplete="email"/>
+    <input class="login-password" id="login-password" type="password" placeholder="senha…" autocomplete="current-password"/>
+    <button class="login-btn" id="login-btn">Entrar</button>
+    <button class="login-toggle" id="login-toggle" onclick="toggleLoginMode()">Criar conta nova</button>
+    <button class="login-toggle" id="login-forgot" onclick="openForgotPassword()" style="margin-top:8px;">Esqueci a senha</button>
+  </div>
+  <div class="login-sent" id="login-sent">
+    <div class="login-sent-icon">✅</div>
+    <div class="login-sent-title">Conta criada!</div>
+    <div class="login-sent-sub">A entrar automaticamente…</div>
+  </div>
+  <div class="login-error" id="login-error">Email ou senha incorrectos.</div>
+</div>
+
+<!-- FIRST RUN MODAL -->
+<div class="api-modal" id="api-modal">
+  <div class="api-box" style="text-align:center;">
+    <div style="font-size:40px;margin-bottom:10px;">🔑</div>
+    <div class="api-title">Bem-vindo!</div>
+    <div class="api-desc">Configura pelo menos uma API nas <strong>Definições</strong> para começares a adicionar sets.</div>
+    <button id="api-btn" style="width:100%;background:var(--red);color:#fff;border:none;border-radius:10px;padding:13px;font-weight:800;font-size:14px;font-family:'DM Sans',sans-serif;cursor:pointer;margin-top:8px;">⚙️ Ir para Definições</button>
+  </div>
+</div>
+
+<!-- USER MENU OVERLAY -->
+<div class="umenu-overlay" id="umenu-overlay" onclick="closeUserMenu()"></div>
+
+<!-- USER MENU -->
+<div class="umenu" id="umenu">
+  <div class="umenu-header">
+    <img class="umenu-avatar" id="umenu-avatar" src="" alt=""/>
+    <div class="umenu-name" id="umenu-name"></div>
+    <div class="umenu-email" id="umenu-email"></div>
+  </div>
+  <div class="umenu-body">
+    <button class="umenu-item" onclick="switchTab('settings');closeUserMenu();">&#9881; Definições e APIs</button>
+    <div class="umenu-sep"></div>
+    <button class="umenu-item" onclick="openChangePassword();closeUserMenu();">🔒 Alterar senha</button>
+    <div class="umenu-sep"></div>
+    <button class="umenu-item danger" onclick="logout()">🚪 Sair</button>
+  </div>
+</div>
+
+<div class="app">
+
+  <!-- HEADER -->
+  <div class="header" id="header" style="display:none">
+    <div class="logo-row">
+      <span class="logo-box" style="cursor:pointer;" onclick="openUserMenu()">LEGO</span>
+      <span class="logo-text" id="header-title">A minha coleção</span>
+      <div class="header-btns">
+        <div class="sync-dot" id="sync-dot"></div>
+        <button class="hdr-action" id="hdr-html" onclick="exportHTML(currentTab==='wish'?'wish':'col')" title="Exportar HTML">HTML</button>
+        <button class="hdr-action" id="hdr-csv"  onclick="exportCSV(currentTab==='wish'?'wish':'col')"  title="Exportar CSV">CSV</button>
+        <button class="hdr-action" id="hdr-upd"  onclick="updateAllEstimates(currentTab==='wish'?'wish':'col')" title="Atualizar estimativas">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+        </button>
+        <!-- avatar removed – access via LEGO logo -->
+      </div>
+    </div>
+    <div class="search-row">
+      <input id="set-input" type="text" inputmode="numeric" placeholder="Número do set (ex: 21051)" autocomplete="off"/>
+      <button id="add-btn">+ Add</button>
+    </div>
+    <div class="hint" id="hint">🔍 A pesquisar…</div>
+  </div>
+
+  <!-- MAIN -->
+  <div id="main" style="display:none">
+
+    <!-- COL -->
+    <div class="panel active" id="panel-col">
+      <div class="stats-bar" id="col-sbar">
+        <div class="sbar"><div class="sbar-num" id="s-sets">0</div><div class="sbar-label">Sets</div></div>
+        <div class="sbar"><div class="sbar-num" id="s-pcs">0</div><div class="sbar-label">Peças</div></div>
+        <div class="sbar"><div class="sbar-num" id="s-paid">—</div><div class="sbar-label">Paguei €</div></div>
+        <div class="sbar"><div class="sbar-num" id="s-estimated">—</div><div class="sbar-label">Estimado €</div></div>
+      </div>
+      <div class="toolbar" id="col-tb">
+        <div class="toolbar-row">
+          <div class="sw"><span class="si">🔍</span><input class="fi" id="col-fi" type="text" placeholder="Pesquisar…" oninput="renderCol()"/></div>
+          <select class="ss" id="col-ss" onchange="renderCol()">
+            <option value="date-desc">Mais recente</option><option value="date-asc">Mais antigo</option>
+            <option value="name-asc">Nome A–Z</option><option value="name-desc">Nome Z–A</option>
+            <option value="parts-desc">Mais peças</option><option value="parts-asc">Menos peças</option>
+            <option value="year-desc">Ano ↓</option><option value="year-asc">Ano ↑</option>
+          </select>
+        </div>
+        <div class="toolbar-row">
+          <button class="tb" style="background:#e8f0fe;color:#1a56db;border-color:#c3d4f7;font-size:11px;" onclick="manualRefreshAll('col')">🔄 Actualizar dados das APIs</button>
+        </div>
+      </div>
+      <div class="sec-t" id="col-sec"></div>
+      <div id="col-list"></div>
+    </div>
+
+    <!-- WISH -->
+    <div class="panel" id="panel-wish">
+      <div class="stats-bar" id="wish-sbar">
+        <div class="sbar"><div class="sbar-num" id="w-sets">0</div><div class="sbar-label">Sets</div></div>
+        <div class="sbar"><div class="sbar-num" id="w-pcs">0</div><div class="sbar-label">Peças</div></div>
+        <div class="sbar"><div class="sbar-num" id="w-ofic">—</div><div class="sbar-label">Valor oficial</div></div>
+      </div>
+      <div class="toolbar" id="wish-tb">
+        <div class="toolbar-row">
+          <div class="sw"><span class="si">🔍</span><input class="fi" id="wish-fi" type="text" placeholder="Pesquisar wishlist…" oninput="renderWish()"/></div>
+          <select class="ss" id="wish-ss" onchange="renderWish()">
+            <option value="date-desc">Mais recente</option><option value="date-asc">Mais antigo</option>
+            <option value="name-asc">Nome A–Z</option><option value="parts-desc">Mais peças</option>
+          </select>
+        </div>
+        <div class="toolbar-row">
+          <button class="tb" style="background:#e8f0fe;color:#1a56db;border-color:#c3d4f7;font-size:11px;" onclick="manualRefreshAll('wish')">🔄 Actualizar dados das APIs</button>
+        </div>
+      </div>
+      <div class="sec-t" id="wish-sec"></div>
+      <div id="wish-list"></div>
+    </div>
+
+    <!-- STATS -->
+    <div class="panel" id="panel-stats">
+      <div class="scards" id="scards"></div>
+      <div class="cbox"><div class="ctitle">Sets por tema</div><div class="cwrap"><canvas id="ch-themes"></canvas></div></div>
+      <div class="cbox"><div class="ctitle">Sets por ano</div><div class="cwrap"><canvas id="ch-years"></canvas></div></div>
+      <div class="cbox"><div class="ctitle">Top 8 por peças</div><div class="cwrap"><canvas id="ch-parts"></canvas></div></div>
+    </div>
+
+    <!-- SETTINGS -->
+    <div class="panel" id="panel-settings">
+
+      <!-- FIELD SOURCE SELECTOR -->
+      <div class="settings-section">
+        <div class="settings-title">🔢 Origem dos campos</div>
+        <div class="settings-sub">Quando um campo existe em mais do que uma API ativa, escolhe qual deve ser utilizado como fonte principal.</div>
+        <div id="brickset-warning" style="display:none;background:#fff8e1;border:1px solid #ffe082;border-radius:10px;padding:10px 12px;font-size:12px;color:#7a5c00;margin-bottom:12px;line-height:1.6;">
+          ✅ <strong>Subtema, Categoria, Exit Date e Preço Oficial</strong> são lidos directamente de uma base de dados CSV local no GitHub — sem limites, sem CORS, sem proxies.<br>
+          Clica em <strong>"🔍 Testar"</strong> para verificar que a base de dados está acessível.
+        </div>
+        <table class="field-matrix" id="field-matrix">
+          <thead>
+            <tr>
+              <th>Campo</th>
+              <th><span class="api-badge rb">RB</span></th>
+              <th><span class="api-badge bs">BS</span></th>
+              <th><span class="api-badge bl">BL</span></th>
+            </tr>
+          </thead>
+          <tbody id="field-matrix-body"></tbody>
+        </table>
+        <button class="settings-save" onclick="saveFieldSources()">✓ Guardar preferências</button>
+      </div>
+
+      <!-- URL CONFIG -->
+      <div class="settings-section">
+        <div class="settings-title">🌐 URL da aplicação</div>
+        <div class="settings-sub">Necessário para o login por email funcionar no GitHub Pages. Cola o URL completo do ficheiro. No Firebase Hosting não é necessário.</div>
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;">
+          <input id="app-url-input" type="url" class="api-key-input" style="font-family:'DM Sans',sans-serif;font-size:12px;" placeholder="https://utilizador.github.io/lego.html" value=""/>
+          <button class="api-save-btn" onclick="saveAppUrl()">Guardar</button>
+        </div>
+        <div id="app-url-status" class="api-status"></div>
+        <div class="api-desc-sm" style="margin-top:4px;">⚠️ Adiciona também o domínio em <a href="https://console.firebase.google.com" target="_blank">Firebase Console</a> → Authentication → Authorized domains.</div>
+      </div>
+
+      <!-- API KEYS CONFIG -->
+      <div class="settings-section">
+        <div class="settings-title">🔑 Configuração das APIs</div>
+        <div class="settings-sub">Ativa as APIs que queres usar. Podes combinar até 3 em simultâneo.</div>
+
+        <!-- REBRICKABLE -->
+        <div class="api-toggle-row">
+          <span class="api-toggle-label"><span class="api-badge rb" style="font-size:11px;padding:2px 7px;">Rebrickable</span></span>
+          <label class="api-toggle"><input type="checkbox" id="toggle-rb" checked/><span class="api-toggle-slider"></span></label>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+          <div class="api-status" id="status-rb" style="flex:1;margin:0;"></div>
+          <button class="api-test-btn" onclick="testApi('rb')">🔍 Testar</button>
+        </div>
+        <div class="api-fields-list" id="fields-rb"></div>
+        <div class="api-key-row">
+          <div style="display:flex;gap:6px;align-items:center;width:100%;">
+              <input class="api-key-input" id="key-rb" type="password" placeholder="API key da Rebrickable…" style="flex:1;min-width:0;"/>
+              <button class="api-save-btn" onclick="toggleKeyVisibility('key-rb',this)" style="padding:8px 10px;font-size:11px;flex-shrink:0;">👁</button>
+            </div>
+          <button class="api-save-btn" onclick="saveApiKey('rb')">Guardar</button>
+        </div>
+        <div class="api-desc-sm">→ <a href="https://rebrickable.com/api/" target="_blank">rebrickable.com</a> → Settings → API Key</div>
+
+        <!-- BRICKSET -->
+        <div class="api-config-section">
+          <div class="api-toggle-row">
+            <span class="api-toggle-label"><span class="api-badge bs" style="font-size:11px;padding:2px 7px;">Brickset</span></span>
+            <label class="api-toggle"><input type="checkbox" id="toggle-bs"/><span class="api-toggle-slider"></span></label>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+            <div class="api-status" id="status-bs" style="flex:1;margin:0;"></div>
+            <button class="api-test-btn" onclick="testApi('bs')">🔍 Testar</button>
+          </div>
+          <div class="api-fields-list" id="fields-bs"></div>
+          <div class="api-key-row">
+            <div style="display:flex;gap:6px;align-items:center;width:100%;">
+                <input class="api-key-input" id="key-bs" type="password" placeholder="API key da Brickset…" style="flex:1;min-width:0;"/>
+                <button class="api-save-btn" onclick="toggleKeyVisibility('key-bs',this)" style="padding:8px 10px;font-size:11px;flex-shrink:0;">👁</button>
+              </div>
+            <button class="api-save-btn" onclick="saveApiKey('bs')">Guardar</button>
+          </div>
+          <div class="api-desc-sm">→ <a href="https://brickset.com/tools/webservices/requestkey" target="_blank">brickset.com</a> → Request API Key</div>
+          <div class="api-desc-sm" style="margin-top:8px;background:#e8f4fd;border-radius:8px;padding:8px 10px;font-size:11px;line-height:1.6;">
+            🔧 <strong>Proxy Firebase (recomendado):</strong> após fazer deploy da Cloud Function, cola aqui o URL para evitar bloqueios CORS/Cloudflare.<br>
+            <div style="display:flex;gap:6px;margin-top:6px;align-items:center;">
+              <input id="bs-fn-url" type="url" class="api-key-input" style="font-size:11px;flex:1;" placeholder="https://us-central1-lego-colecao.cloudfunctions.net/bricksetProxy"/>
+              <button class="api-save-btn" onclick="saveBsFunctionUrl()">Guardar</button>
+            </div>
+            <div id="bs-fn-status" style="margin-top:4px;font-size:11px;color:var(--green);"></div>
+          </div>
+        </div>
+
+        <!-- BRICKLINK -->
+        <div class="api-config-section">
+          <div class="api-toggle-row">
+            <span class="api-toggle-label"><span class="api-badge bl" style="font-size:11px;padding:2px 7px;">Bricklink</span></span>
+            <label class="api-toggle"><input type="checkbox" id="toggle-bl"/><span class="api-toggle-slider"></span></label>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+            <div class="api-status" id="status-bl" style="flex:1;margin:0;"></div>
+            <button class="api-test-btn" onclick="testApi('bl')">🔍 Testar</button>
+          </div>
+          <div class="api-fields-list" id="fields-bl"></div>
+          <div class="api-key-row" style="flex-wrap:wrap;gap:6px;">
+            <input class="api-key-input" id="key-bl-consumer" type="password" placeholder="Consumer Key…" style="min-width:130px;"/>
+            <input class="api-key-input" id="key-bl-secret"   type="password" placeholder="Consumer Secret…" style="min-width:130px;"/>
+          </div>
+          <div class="api-key-row" style="flex-wrap:wrap;gap:6px;">
+            <input class="api-key-input" id="key-bl-token"       type="password" placeholder="Token Value…" style="min-width:130px;"/>
+            <input class="api-key-input" id="key-bl-tokensecret" type="password" placeholder="Token Secret…" style="min-width:130px;"/>
+          </div>
+          <button class="api-save-btn" style="width:100%;margin-top:4px;" onclick="saveApiKey('bl')">Guardar credenciais Bricklink</button>
+          <div class="api-desc-sm" style="margin-top:6px;">→ <a href="https://www.bricklink.com/v3/api.page" target="_blank">bricklink.com</a> → My BrickLink → API Access</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- TAB BAR -->
+  <nav class="tab-bar" id="tab-bar">
+    <button class="tab active" id="tab-col"      onclick="switchTab('col')"><span class="tab-icon"><img src="data:image/png;base64,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" style="width:22px;height:22px;object-fit:contain;" alt="🧱"></span>Coleção</button>
+    <button class="tab"        id="tab-wish"     onclick="switchTab('wish')"><span class="tab-icon">⭐</span>Wishlist</button>
+    <button class="tab"        id="tab-stats"    onclick="switchTab('stats')"><span class="tab-icon">📊</span>Estatísticas</button>
+    <button class="tab"        id="tab-settings" onclick="switchTab('settings')"><span class="tab-icon"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M12 15.5A3.5 3.5 0 0 1 8.5 12 3.5 3.5 0 0 1 12 8.5a3.5 3.5 0 0 1 3.5 3.5 3.5 3.5 0 0 1-3.5 3.5m7.43-2.92c.04-.34.07-.68.07-1.08s-.03-.73-.07-1.08l2.11-1.63c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64L4.57 11c-.04.34-.07.67-.07 1.08s.03.73.07 1.07l-2.11 1.66c-.19.15-.25.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1.01c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.58 1.69-.98l2.49 1.01c.22.08.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.66z"/></svg></span>Definições</button>
+  </nav>
+
+  <!-- LIGHTBOX -->
+  <div class="lb" id="lb">
+    <button class="lb-close" onclick="closeLB()">✕</button>
+    <div class="lb-name" id="lb-name"></div>
+    <div class="lb-img" id="lb-img"></div>
+    <div class="lb-ctrl">
+      <button class="lb-arr" id="lb-prev" onclick="lbNav(-1)">‹</button>
+      <span class="lb-cnt" id="lb-cnt"></span>
+      <button class="lb-arr" id="lb-next" onclick="lbNav(1)">›</button>
+    </div>
+    <div class="lb-acts">
+      <button class="lb-add" onclick="lbAddPhoto()">📷 Adicionar foto</button>
+      <button class="lb-del" id="lb-del" onclick="lbDelPhoto()">🗑 Remover foto</button>
+    </div>
+  </div>
+
+  <input type="file" id="photo-input" accept="image/*" capture="environment"/>
+</div>
+
+
+<!-- UPDATING OVERLAY --><!-- UPDATING OVERLAY -->
+<div class="updating-overlay" id="updating-overlay">
+  <div class="updating-box">
+    <div class="spinner-sm" style="border:3px solid rgba(0,0,0,.1);border-top-color:var(--red);border-radius:50%;animation:spin .7s linear infinite;width:24px;height:24px;margin:0 auto 12px;"></div>
+    <div class="updating-msg" id="updating-msg">A atualizar estimativas…</div>
+  </div>
+</div>
+
+<script>
+// ── CLOUDINARY ──
+const CL_CLOUD = 'dykkcxtp0';
+const CL_PRESET = 'lego_fotos';
+
+async function uploadToCloudinary(file) {
+  const fd = new FormData();
+  fd.append('file', file);
+  fd.append('upload_preset', CL_PRESET);
+  const res = await fetch(`https://api.cloudinary.com/v1_1/${CL_CLOUD}/image/upload`, { method: 'POST', body: fd });
+  if (!res.ok) throw new Error('upload failed');
+  const data = await res.json();
+  return data.secure_url;
+}
+
+async function deleteFromCloudinary(url) {
+  // Extract public_id from URL
+  const parts = url.split('/');
+  const file = parts[parts.length - 1];
+  const publicId = 'lego_fotos/' + file.replace(/\.[^.]+$/, '');
+  // Note: deletion requires server-side signature; we'll just remove from our data
+  // The image will remain in Cloudinary but unused
+}
+
+// ── FIREBASE ──
+const fbConfig = {
+  apiKey: "AIzaSyBMWkCtYcdUFG7oU9OifMynZNo5ADtdrQc",
+  authDomain: "lego-colecao.firebaseapp.com",
+  projectId: "lego-colecao",
+  storageBucket: "lego-colecao.firebasestorage.app",
+  messagingSenderId: "966289591560",
+  appId: "1:966289591560:web:b3adde228a97a93667f0bd"
+};
+firebase.initializeApp(fbConfig);
+const auth = firebase.auth();
+const db   = firebase.firestore();
+
+// ── APP URL — must match an Authorized Domain in Firebase Console ──
+// On GitHub Pages set this to your full file URL (e.g. https://user.github.io/lego.html)
+// Save via Settings → 🌐 URL da aplicação. Leave blank to auto-detect.
+const APP_URL = localStorage.getItem('lego_app_url') || window.location.href.split('?')[0].split('#')[0];
+
+// ── PWA ──
+(()=>{
+  const icon=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" rx="80" fill="#e3000b"/><text x="256" y="340" font-family="Arial Black" font-size="200" font-weight="900" text-anchor="middle" fill="#FFD700">LEGO</text></svg>`;
+  const b64='data:image/svg+xml;base64,'+btoa(icon);
+  document.getElementById('apple-icon').href=b64;
+  const m={name:'LEGO Coleção',short_name:'LEGO',start_url:location.href,display:'standalone',background_color:'#f2f2f7',theme_color:'#e3000b',icons:[{src:b64,sizes:'512x512',type:'image/svg+xml',purpose:'any maskable'}]};
+  const blob=new Blob([JSON.stringify(m)],{type:'application/manifest+json'});
+  document.getElementById('manifest-link').href=URL.createObjectURL(blob);
+})();
+
+// ── STATE ──
+let uid='', collection=[], wishlist=[], currentTab='col', charts={};
+let lbSetNum=null, lbList=null, lbIdx=0, lbPhotoTarget=null;
+
+// Multi-API config
+let apiConfig = {
+  rb: { enabled: true,  key: '' },
+  bs: { enabled: false, key: '' },
+  bl: { enabled: false, consumerKey:'', consumerSecret:'', tokenValue:'', tokenSecret:'' }
+};
+
+// Field source preferences (which API to prefer for each shared field)
+// Values: 'rb', 'bs', 'bl', 'auto'
+let fieldSources = {
+  name:          'auto',
+  set_img_url:   'auto',
+  theme_name:    'auto',
+  subtheme:      'auto',
+  category:      'auto',
+  num_parts:     'auto',
+  year:          'auto',
+  exit_date:     'auto',
+  price_official:'auto',
+};
+
+// Field matrix definition: which APIs provide each field
+const FIELD_DEFS = [
+  { key:'name',           label:'Nome do Set',        desc:'nome oficial',              rb:true,  bs:true,  bl:true  },
+  { key:'set_img_url',    label:'Imagem Principal',   desc:'set_img_url/imageURL',      rb:true,  bs:true,  bl:false },
+  { key:'theme_name',     label:'Tema',               desc:'theme / theme_name',        rb:true,  bs:true,  bl:true  },
+  { key:'subtheme',       label:'Subtema',            desc:'subtheme',                  rb:false, bs:true,  bl:false },
+  { key:'category',       label:'Categoria',          desc:'category',                  rb:false, bs:true,  bl:false },
+  { key:'num_parts',      label:'Nº de Peças',        desc:'pieces/num_parts',          rb:true,  bs:true,  bl:false },
+  { key:'year',           label:'Ano de Lançamento',  desc:'year/year_released',        rb:true,  bs:true,  bl:true  },
+  { key:'exit_date',      label:'Exit Date',          desc:'exitDate',                  rb:false, bs:true,  bl:false },
+  { key:'price_official', label:'Preço Oficial',      desc:'retail price US/UK/CA/DE',  rb:false, bs:true,  bl:false },
+];
+
+// ── SYNC ──
+function sync(state){
+  const d=document.getElementById('sync-dot');
+  d.className='sync-dot'+(state==='syncing'?' syncing':state==='offline'?' offline':'');
+}
+
+// ── FIRESTORE ──
+function colRef(listName){ return db.collection('users').doc(uid).collection(listName); }
+
+async function fsLoadAll(listName){
+  try{
+    const snap=await colRef(listName).orderBy('added','desc').get();
+    return snap.docs.map(d=>({id:d.id,...d.data()}));
+  }catch(e){console.error(e);return null;}
+}
+
+async function fsSaveItem(listName, item){
+  sync('syncing');
+  try{
+    const {id,...data}=item;
+    if(id) await colRef(listName).doc(id).set(data);
+    else {
+      const ref=await colRef(listName).add(data);
+      item.id=ref.id;
+    }
+    sync('ok');
+  }catch(e){console.error(e);sync('offline');}
+}
+
+async function fsDeleteItem(listName, item){
+  sync('syncing');
+  try{
+    if(item.id) await colRef(listName).doc(item.id).delete();
+    sync('ok');
+  }catch(e){console.error(e);sync('offline');}
+}
+
+// ── AUTH ──
+async function setupUser(user) {
+  try {
+  uid = user.uid;
+  // Always hide splash and login screen first
+  hideSplash();
+  document.getElementById('login-screen').classList.remove('on');
+
+  // Reset login button state in case we came from the login form
+  const loginBtn = document.getElementById('login-btn');
+  if(loginBtn){ loginBtn.disabled=false; loginBtn.textContent='Entrar'; }
+
+  // Avatar (element may not exist if removed from header)
+  const name = user.displayName||user.email||'U';
+  const initials = name.split(/[\s@]/g).filter(Boolean).map(w=>w[0].toUpperCase()).slice(0,2).join('');
+  const avatarEl = document.getElementById('avatar');
+  if(avatarEl){
+    if(user.photoURL){
+      avatarEl.innerHTML = `<img src="${user.photoURL}" alt="${initials}" onerror="this.parentNode.innerHTML='<span class=avatar-initials>${initials}</span>'"/>`;
+    } else {
+      avatarEl.innerHTML = `<span class="avatar-initials">${initials}</span>`;
+    }
+  }
+  const umenuAvatarEl = document.getElementById('umenu-avatar');
+  if(umenuAvatarEl) umenuAvatarEl.src = user.photoURL||'';
+  const umenuName = document.getElementById('umenu-name');
+  if(umenuName) umenuName.textContent = user.displayName||user.email||'';
+  const umenuEmail = document.getElementById('umenu-email');
+  if(umenuEmail) umenuEmail.textContent = user.email||'';
+
+  // Load multi-API config
+  // Load API config — try uid-specific first, fall back to generic (survives logout/login)
+  const savedApi = localStorage.getItem(`lego_apiconfig_${uid}`) || localStorage.getItem('lego_apiconfig');
+  if(savedApi){ try{ apiConfig={...apiConfig,...JSON.parse(savedApi)}; }catch(e){} }
+  // Legacy migration
+  const legacyKey = localStorage.getItem(`lego_apikey_${uid}`);
+  if(legacyKey && !apiConfig.rb.key){ apiConfig.rb.key=legacyKey; apiConfig.rb.enabled=true; saveApiConfig(); }
+
+  // Load field sources — try uid-specific first, fall back to generic
+  const savedFs = localStorage.getItem(`lego_fieldsrc_${uid}`) || localStorage.getItem('lego_fieldsrc');
+  if(savedFs){ try{ fieldSources={...fieldSources,...JSON.parse(savedFs)}; }catch(e){} }
+
+  document.getElementById('splash-text').textContent = 'A sincronizar coleção…';
+  const [colData,wishData] = await Promise.all([fsLoadAll('collection'),fsLoadAll('wishlist')]);
+  collection = colData||[]; wishlist = wishData||[];
+  // Migrate legacy currency US → €
+  [...collection, ...wishlist].forEach(s => {
+    if(!s.currency || s.currency === 'US') s.currency = '€';
+  });
+
+  // Save migrated currency values
+  if([...collection,...wishlist].some(s=>!s._currencyMigrated)){
+    [...collection,...wishlist].forEach(s=>s._currencyMigrated=true);
+  }
+  // Background refresh: for sets missing subtheme/category/exit_date
+  setTimeout(()=>refreshMissingFields(), 1500);
+  sync(colData!==null?'ok':'offline');
+  // hideSplash already called at top of setupUser
+
+  const hasApi = apiConfig.rb.key||apiConfig.bs.key||apiConfig.bl.consumerKey;
+  if(!hasApi){
+    document.getElementById('api-modal').classList.add('on');
+  } else {
+    showMain();
+  }
+  loadSettingsUI();
+  } catch(err) {
+    console.error('setupUser error:', err);
+    // Show error on login screen so user knows something went wrong
+    hideSplash();
+    showLogin();
+    const errEl = document.getElementById('login-error');
+    if(errEl){ errEl.textContent = 'Erro ao carregar: ' + (err.message||err); errEl.classList.add('on'); }
+    const btn = document.getElementById('login-btn');
+    if(btn){ btn.disabled=false; btn.textContent='Entrar'; }
+  }
+}
+
+async function initAuth() {
+  document.getElementById('splash-text').textContent = 'A verificar sessão…';
+
+  // Safety net: if Firebase hangs (e.g. domain not authorized), show login after 8s
+  const authTimeout = setTimeout(() => {
+    hideSplash();
+    showLogin();
+    const errEl = document.getElementById('login-error');
+    errEl.textContent = 'Timeout — verifica se o domínio está autorizado no Firebase Console (Authentication → Authorized domains).';
+    errEl.classList.add('on');
+  }, 8000);
+
+  // No magic link needed — using email/password auth
+
+  // Normal auth state check
+  const unsub = auth.onAuthStateChanged(async user => {
+    clearTimeout(authTimeout);
+    unsub();
+    if(user) {
+      await setupUser(user);
+    } else {
+      hideSplash();
+      showLogin();
+    }
+  });
+}
+initAuth();
+
+function hideSplash(){
+  const s=document.getElementById('splash');
+  s.classList.add('hidden');
+  setTimeout(()=>s.style.display='none',400);
+}
+function showLogin(){
+  document.getElementById('login-screen').classList.add('on');
+}
+function showMain(){
+  document.getElementById('login-screen').classList.remove('on');
+  document.getElementById('header').style.display='block';
+  document.getElementById('main').style.display='block';
+  document.getElementById('tab-bar').classList.add('on');
+  renderAll();
+}
+
+// Email link sign-in
+let loginMode = 'signin'; // 'signin' or 'register'
+
+function toggleLoginMode(){
+  loginMode = loginMode === 'signin' ? 'register' : 'signin';
+  document.getElementById('login-btn').textContent = loginMode === 'signin' ? 'Entrar' : 'Criar conta';
+  document.getElementById('login-toggle').textContent = loginMode === 'signin' ? 'Criar conta nova' : 'Já tenho conta';
+  document.getElementById('login-sub').textContent = loginMode === 'signin' ? 'Entra com o teu email e senha.' : 'Cria a tua conta com email e senha.';
+  document.getElementById('login-forgot').style.display = loginMode === 'signin' ? '' : 'none';
+  document.getElementById('login-error').classList.remove('on');
+}
+
+document.getElementById('login-btn').addEventListener('click', async () => {
+  const email = document.getElementById('login-email').value.trim();
+  const password = document.getElementById('login-password').value;
+  const errEl = document.getElementById('login-error');
+  if(!email || !email.includes('@')) {
+    errEl.textContent = 'Introduz um email válido.';
+    errEl.classList.add('on'); return;
+  }
+  if(!password || password.length < 6) {
+    errEl.textContent = 'A senha deve ter pelo menos 6 caracteres.';
+    errEl.classList.add('on'); return;
+  }
+  errEl.classList.remove('on');
+  const btn = document.getElementById('login-btn');
+  btn.disabled = true;
+  btn.textContent = loginMode === 'signin' ? 'A entrar…' : 'A criar conta…';
+  try {
+    let result;
+    if(loginMode === 'register') {
+      result = await auth.createUserWithEmailAndPassword(email, password);
+    } else {
+      result = await auth.signInWithEmailAndPassword(email, password);
+    }
+    await setupUser(result.user);
+  } catch(e) {
+    console.error(e);
+    const msgs = {
+      'auth/user-not-found': 'Email não encontrado. Cria uma conta primeiro.',
+      'auth/wrong-password': 'Senha incorrecta.',
+      'auth/email-already-in-use': 'Este email já tem conta. Usa "Já tenho conta".',
+      'auth/weak-password': 'A senha é demasiado fraca (mínimo 6 caracteres).',
+      'auth/invalid-email': 'Email inválido.',
+      'auth/invalid-credential': 'Email ou senha incorrectos.',
+      'auth/too-many-requests': 'Demasiadas tentativas. Aguarda alguns minutos.',
+    };
+    errEl.textContent = msgs[e.code] || ('Erro: ' + e.message);
+    errEl.classList.add('on');
+    btn.disabled = false;
+    btn.textContent = loginMode === 'signin' ? 'Entrar' : 'Criar conta';
+  }
+});
+document.getElementById('login-email').addEventListener('keydown', e => {
+  if(e.key === 'Enter') document.getElementById('login-password').focus();
+});
+document.getElementById('login-password').addEventListener('keydown', e => {
+  if(e.key === 'Enter') document.getElementById('login-btn').click();
+});
+
+function logout(){
+  if(!confirm('Tens a certeza que queres sair?')) return;
+  auth.signOut();
+  collection=[]; wishlist=[]; uid='';
+  closeUserMenu();
+  document.getElementById('header').style.display='none';
+  document.getElementById('main').style.display='none';
+  document.getElementById('tab-bar').classList.remove('on');
+  // Reset login form
+  document.getElementById('login-form').style.display='flex';
+  document.getElementById('login-sent').classList.remove('on');
+  document.getElementById('login-email').value='';
+  document.getElementById('login-password').value='';
+  document.getElementById('login-btn').disabled=false;
+  document.getElementById('login-btn').textContent='Entrar';
+  document.getElementById('login-toggle').textContent='Criar conta nova';
+  document.getElementById('login-error').classList.remove('on');
+  loginMode='signin';
+  document.getElementById('login-screen').classList.add('on');
+}
+
+// ── USER MENU ──
+function openUserMenu(){ document.getElementById('umenu').classList.add('on'); document.getElementById('umenu-overlay').classList.add('on'); }
+function closeUserMenu(){ document.getElementById('umenu').classList.remove('on'); document.getElementById('umenu-overlay').classList.remove('on'); }
+
+// ── API CONFIG ──
+function saveApiConfig(){
+  const data = JSON.stringify(apiConfig);
+  localStorage.setItem(`lego_apiconfig_${uid}`, data);
+  localStorage.setItem('lego_apiconfig', data); // generic fallback for next login
+}
+
+function toggleKeyVisibility(inputId, btn){
+  const inp = document.getElementById(inputId);
+  if(!inp) return;
+  if(inp.type === 'password'){
+    // Show: if field is empty but key is saved, populate it temporarily
+    const api = inputId === 'key-rb' ? 'rb' : inputId === 'key-bs' ? 'bs' : null;
+    if(api && apiConfig[api]?.key && !inp.value){
+      inp.value = apiConfig[api].key;
+    }
+    inp.type = 'text';
+    btn.textContent = '🔒';
+    btn.title = 'Esconder';
+  } else {
+    inp.type = 'password';
+    btn.textContent = '👁';
+    btn.title = 'Mostrar';
+  }
+}
+
+function saveBsFunctionUrl(){
+  const val = document.getElementById('bs-fn-url').value.trim();
+  const st = document.getElementById('bs-fn-status');
+  if(!val){
+    localStorage.removeItem('lego_bs_function_url');
+    st.textContent='URL removido — a usar proxies públicos.'; st.style.color='var(--muted)';
+    toast('URL da função removido.');
+    return;
+  }
+  if(!val.startsWith('https://')){
+    st.textContent='✗ O URL deve começar com https://'; st.style.color='var(--red)'; return;
+  }
+  localStorage.setItem('lego_bs_function_url', val);
+  st.textContent='✓ URL guardado! A Brickset irá usar esta função como proxy.'; st.style.color='var(--green)';
+  toast('✓ URL da função guardado!');
+  // No reload needed - URL is read dynamically
+}
+
+function saveAppUrl(){
+  const val = document.getElementById('app-url-input').value.trim();
+  const statusEl = document.getElementById('app-url-status');
+  if(!val){
+    localStorage.removeItem('lego_app_url');
+    statusEl.textContent = 'URL removido — a usar URL atual da página.';
+    statusEl.className = 'api-status';
+    toast('URL removido.');
+    return;
+  }
+  if(!val.startsWith('https://')){
+    statusEl.textContent = '✗ O URL deve começar com https://';
+    statusEl.className = 'api-status err';
+    return;
+  }
+  localStorage.setItem('lego_app_url', val);
+  statusEl.textContent = '✓ URL guardado — vai ser usado no próximo login.';
+  statusEl.className = 'api-status ok';
+  toast('✓ URL guardado!');
+}
+
+function loadSettingsUI(){
+  // Brickset Function URL
+  const bsFnInput = document.getElementById('bs-fn-url');
+  const bsFnStatus = document.getElementById('bs-fn-status');
+  if(bsFnInput){
+    const savedFn = localStorage.getItem('lego_bs_function_url');
+    bsFnInput.value = savedFn || '';
+    if(savedFn){ bsFnStatus.textContent='✓ Proxy configurado: ' + savedFn.slice(0,50)+'…'; bsFnStatus.style.color='var(--green)'; }
+    else { bsFnStatus.textContent='Não configurado — a usar proxies públicos (menos fiável).'; bsFnStatus.style.color='var(--muted)'; }
+  }
+
+  // URL config
+  const savedUrl = localStorage.getItem('lego_app_url');
+  const urlInput = document.getElementById('app-url-input');
+  const urlStatus = document.getElementById('app-url-status');
+  if(urlInput){
+    urlInput.value = savedUrl || '';
+    if(savedUrl){
+      urlStatus.textContent = '✓ URL configurado: ' + savedUrl;
+      urlStatus.className = 'api-status ok';
+    } else {
+      urlStatus.textContent = 'A usar URL atual: ' + window.location.href.split('?')[0];
+      urlStatus.className = 'api-status';
+    }
+  }
+  // Rebrickable
+  document.getElementById('toggle-rb').checked = apiConfig.rb.enabled;
+  if(apiConfig.rb.key){
+    document.getElementById('status-rb').textContent = '✓ API key configurada';
+    document.getElementById('status-rb').className = 'api-status ok';
+    document.getElementById('key-rb').placeholder = '••••' + apiConfig.rb.key.slice(-6) + ' (guardada)';
+  } else {
+    document.getElementById('status-rb').textContent = '⚠️ Sem chave — API não configurada';
+    document.getElementById('status-rb').className = 'api-status err';
+  }
+  // Brickset
+  document.getElementById('toggle-bs').checked = apiConfig.bs.enabled;
+  if(apiConfig.bs.key){
+    document.getElementById('status-bs').textContent = '✓ API key configurada';
+    document.getElementById('status-bs').className = 'api-status ok';
+    document.getElementById('key-bs').placeholder = '••••' + apiConfig.bs.key.slice(-6) + ' (guardada)';
+  } else {
+    document.getElementById('status-bs').textContent = '⚠️ Sem chave — API não configurada';
+    document.getElementById('status-bs').className = 'api-status err';
+  }
+  // Bricklink
+  document.getElementById('toggle-bl').checked = apiConfig.bl.enabled;
+  if(apiConfig.bl.consumerKey){
+    document.getElementById('status-bl').textContent = '✓ Credenciais configuradas';
+    document.getElementById('status-bl').className = 'api-status ok';
+  } else {
+    document.getElementById('status-bl').textContent = '⚠️ Sem credenciais — API não configurada';
+    document.getElementById('status-bl').className = 'api-status err';
+  }
+  // Sync toggles
+  ['rb','bs','bl'].forEach(api=>{
+    document.getElementById(`toggle-${api}`).onchange = function(){
+      apiConfig[api].enabled = this.checked;
+      saveApiConfig();
+      renderFieldMatrix();
+    };
+  });
+}
+
+function saveApiKey(api){
+  if(api==='rb'){
+    const k=document.getElementById('key-rb').value.trim();
+    if(k){ apiConfig.rb.key=k; document.getElementById('key-rb').value=''; }
+    apiConfig.rb.enabled=document.getElementById('toggle-rb').checked;
+    document.getElementById('status-rb').textContent=apiConfig.rb.key?'✓ API key configurada':'⚠️ Sem chave — API não configurada';
+    document.getElementById('status-rb').className='api-status'+(apiConfig.rb.key?' ok':' err');
+  } else if(api==='bs'){
+    const k=document.getElementById('key-bs').value.trim();
+    if(k){ apiConfig.bs.key=k; document.getElementById('key-bs').value=''; }
+    apiConfig.bs.enabled=document.getElementById('toggle-bs').checked;
+    document.getElementById('status-bs').textContent=apiConfig.bs.key?'✓ API key configurada':'⚠️ Sem chave — API não configurada';
+    document.getElementById('status-bs').className='api-status'+(apiConfig.bs.key?' ok':' err');
+  } else if(api==='bl'){
+    const ck=document.getElementById('key-bl-consumer').value.trim();
+    const cs=document.getElementById('key-bl-secret').value.trim();
+    const tv=document.getElementById('key-bl-token').value.trim();
+    const ts=document.getElementById('key-bl-tokensecret').value.trim();
+    if(ck&&cs&&tv&&ts){
+      apiConfig.bl.consumerKey=ck; apiConfig.bl.consumerSecret=cs;
+      apiConfig.bl.tokenValue=tv; apiConfig.bl.tokenSecret=ts;
+      ['key-bl-consumer','key-bl-secret','key-bl-token','key-bl-tokensecret'].forEach(id=>document.getElementById(id).value='');
+    } else if(ck||cs||tv||ts){ toast('Preenche todos os 4 campos do Bricklink.',false); return; }
+    apiConfig.bl.enabled=document.getElementById('toggle-bl').checked;
+    document.getElementById('status-bl').textContent=apiConfig.bl.consumerKey?'✓ Credenciais configuradas':'⚠️ Sem credenciais — API não configurada';
+    document.getElementById('status-bl').className='api-status'+(apiConfig.bl.consumerKey?' ok':' err');
+  }
+  saveApiConfig();
+  renderFieldMatrix();
+  toast('✓ Guardado!');
+}
+
+// ── FIELD MATRIX ──
+function renderFieldMatrix(){
+  const body=document.getElementById('field-matrix-body'); if(!body) return;
+  const activeApis={rb:apiConfig.rb.enabled&&apiConfig.rb.key, bs:apiConfig.bs.enabled&&apiConfig.bs.key, bl:apiConfig.bl.enabled&&apiConfig.bl.consumerKey};
+  // Show warning if Brickset not active
+  const bsWarning = document.getElementById('brickset-warning');
+  if(bsWarning){
+    const bsActive = apiConfig.bs.enabled && apiConfig.bs.key;
+    bsWarning.style.display = bsActive ? 'none' : 'block';
+  }
+  body.innerHTML = FIELD_DEFS.map(f=>{
+    const apis=['rb','bs','bl'];
+    const available = apis.filter(a=>f[a]&&activeApis[a]);
+    if(available.length<=1){
+      // only one or zero APIs can provide this field – no choice needed
+      const src = available[0]||null;
+      return `<tr>
+        <td class="fm-row-label">${f.label}<small>${f.desc}</small></td>
+        ${apis.map(a=>f[a]?`<td><div class="fm-api">${src===a?'<span style="color:var(--red);font-size:16px;">●</span>':'<span class="fm-na">–</span>'}</div></td>`:`<td><div class="fm-api"><span class="fm-na">✗</span></div></td>`).join('')}
+      </tr>`;
+    }
+    return `<tr>
+      <td class="fm-row-label">${f.label}<small>${f.desc}</small></td>
+      ${apis.map(a=>{
+        if(!f[a]) return `<td><div class="fm-api"><span class="fm-na">✗</span></div></td>`;
+        const checked = (fieldSources[f.key]==='auto'&&a===available[0]) || fieldSources[f.key]===a;
+        return `<td><div class="fm-api"><input type="radio" class="fm-radio" name="fs_${f.key}" value="${a}" ${checked?'checked':''} ${!activeApis[a]?'disabled':''}></div></td>`;
+      }).join('')}
+    </tr>`;
+  }).join('');
+}
+
+function saveFieldSources(){
+  FIELD_DEFS.forEach(f=>{
+    const sel=document.querySelector(`input[name="fs_${f.key}"]:checked`);
+    if(sel) fieldSources[f.key]=sel.value;
+  });
+  const fsData = JSON.stringify(fieldSources);
+  localStorage.setItem(`lego_fieldsrc_${uid}`, fsData);
+  localStorage.setItem('lego_fieldsrc', fsData); // generic fallback
+  toast('✓ Preferências guardadas!');
+}
+
+
+// ── API TEST ──
+async function testApi(api){
+  const statusEl=document.getElementById('status-'+api);
+  const fieldsEl=document.getElementById('fields-'+api);
+  const hasKey=api==='bl'?apiConfig.bl.consumerKey:apiConfig[api].key;
+  if(!hasKey){statusEl.textContent='⚠️ Sem chave configurada';statusEl.className='api-status err';return;}
+  statusEl.textContent='⏳ A testar com set 21051 (Tokyo)…';statusEl.className='api-status testing';
+  fieldsEl.classList.remove('on');fieldsEl.innerHTML='';
+  try{
+    let result=null;
+    if(api==='bs'){
+      // For Brickset: test each proxy individually and show diagnostics
+      statusEl.textContent='⏳ A carregar base de dados CSV…';statusEl.className='api-status testing';
+      bricksetDB = null; bricksetDBLoading = false; // force reload
+      // Test CSV database instead of API proxies
+      try {
+        const db_csv = await loadBricksetDB();
+        if(db_csv){
+          const count = Object.keys(db_csv).length;
+          statusEl.textContent = `✓ Base de dados CSV carregada — ${count} sets disponíveis!`;
+          statusEl.className = 'api-status ok';
+          result = await lookupBrickset('21051');
+        } else {
+          statusEl.textContent = '✗ Não foi possível carregar o CSV do GitHub.';
+          statusEl.className = 'api-status err';
+          return;
+        }
+      } catch(e) {
+        statusEl.textContent = '✗ Erro: ' + e.message;
+        statusEl.className = 'api-status err';
+        return;
+      }
+      if(false){ // skip old proxy test
+      const proxyNames=['Firebase Function','directo','corsproxy.io','allorigins','codetabs','thingproxy'];
+      const proxyResults=[];
+      const bsCheck=`https://brickset.com/api/v3.asmx/checkKey?apiKey=${encodeURIComponent(apiConfig.bs.key)}`;
+      const _fnUrl2 = localStorage.getItem('lego_bs_function_url')||'';
+      const _fnUrl = localStorage.getItem('lego_bs_function_url')||'';
+      const proxyFns=[
+        async()=>{if(!_fnUrl2)return null;const r=await fetch(`${_fnUrl2}?apiKey=${encodeURIComponent(apiConfig.bs.key)}&method=getSets&params=${encodeURIComponent(JSON.stringify({setNumber:'21051',pageSize:1}))}`);return r.ok?r.text():null;},
+        async()=>{const r=await fetch(bsCheck);return r.ok?r.text():null;},
+        async()=>{const r=await fetch('https://corsproxy.io/?'+encodeURIComponent(bsCheck));return r.ok?r.text():null;},
+        async()=>{const r=await fetch('https://api.allorigins.win/get?url='+encodeURIComponent(bsCheck));if(!r.ok)return null;const j=await r.json();return j?.contents||null;},
+        async()=>{const r=await fetch('https://api.codetabs.com/v1/proxy/?quest='+encodeURIComponent(bsCheck));return r.ok?r.text():null;},
+        async()=>{const r=await fetch('https://thingproxy.freeboard.io/fetch/'+bsCheck);return r.ok?r.text():null;},
+      ];
+      let keyOk=false; let workingProxy='';
+      for(let i=0;i<proxyFns.length;i++){
+        statusEl.textContent=`⏳ A testar proxy ${i+1}/5: ${proxyNames[i]}…`;
+        try{
+          const t=await Promise.race([proxyFns[i](),new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),8000))]);
+          const ok=!!(t&&(t.includes('"status":"valid"') || t.includes('"sets"') || t.includes('limit exceeded')));
+          proxyResults.push({name:proxyNames[i],ok,text:t?t.slice(0,80):'(sem resposta)'});
+          if(ok&&!keyOk){keyOk=true;workingProxy=proxyNames[i];}
+        }catch(e){proxyResults.push({name:proxyNames[i],ok:false,text:e.message});}
+      }
+      // Show proxy diagnostics
+      const diagRows=proxyResults.map(p=>`<div class="api-field-row"><span class="${p.ok?'api-field-ok':'api-field-empty'}">${p.ok?'✓':'✗'}</span><span style="font-weight:700;min-width:110px;display:inline-block">${p.name}</span><span style="font-size:10px;color:#888;word-break:break-all">${p.text}</span></div>`).join('');
+      fieldsEl.innerHTML='<div style="font-weight:700;margin-bottom:8px;font-size:11px;">📡 Diagnóstico de proxies CORS:</div>'+diagRows;
+      fieldsEl.classList.add('on');
+      if(!keyOk){
+        const limitHit = proxyResults.some(p=>p.text&&p.text.includes('limit exceeded'));
+        if(limitHit){
+          statusEl.textContent='⚠️ Limite diário da Brickset atingido.';
+          statusEl.className='api-status';
+        } else {
+          statusEl.textContent='✗ Proxies falharam — ver diagnóstico abaixo';
+          statusEl.className='api-status err';
+        }
+      } // end if(false)
+        return;
+      }
+      statusEl.textContent=`✓ Chave válida! (proxy: ${workingProxy})`;statusEl.className='api-status ok';
+      result=await lookupBrickset('21051');
+    } else {
+      if(api==='rb') result=await lookupRebrickable('21051');
+      else if(api==='bl') result=await lookupBricklink('21051');
+    }
+    if(!result && api!=='bs'){
+      let errMsg='✗ Sem resposta — ';
+      if(api==='rb') errMsg+='verifica a chave em rebrickable.com → Settings → API.';
+      else errMsg+='verifica as 4 credenciais OAuth do Bricklink.';
+      statusEl.textContent=errMsg;statusEl.className='api-status err';return;
+    }
+    statusEl.textContent='✓ API a funcionar!';statusEl.className='api-status ok';
+    const fieldDefs=[
+      {key:'set_num',label:'Número do set'},
+      {key:'name',label:'Nome'},
+      {key:'set_img_url',label:'Imagem',isUrl:true},
+      {key:'theme_name',label:'Tema'},
+      {key:'subtheme',label:'Subtema'},
+      {key:'category',label:'Categoria'},
+      {key:'num_parts',label:'Nº de peças'},
+      {key:'year',label:'Ano'},
+      {key:'exit_date',label:'Exit Date'},
+      {key:'price_retail',label:'Preços retalho',isObj:true},
+    ];
+    const rows=fieldDefs.map(f=>{
+      const val=result[f.key];
+      let hasVal=f.isObj?val&&Object.keys(val).length>0:val!=null&&val!=='';
+      const icon=hasVal?'<span class="api-field-ok">✓</span>':'<span class="api-field-empty">—</span>';
+      let display=hasVal?(f.isObj?Object.entries(val).map(([k,v])=>k+':'+v).join(' '):(f.isUrl?'✓ URL':String(val).slice(0,40))):'Não disponível';
+      return '<div class="api-field-row">'+icon+' <span style="font-weight:700;min-width:90px;flex-shrink:0;">'+f.label+'</span> <span style="color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+display+'</span></div>';
+    }).join('');
+    fieldsEl.innerHTML='<div style="font-weight:700;margin-bottom:6px;color:var(--text);font-size:11px;">Resultado com set 21051 (Tokyo):</div>'+rows;
+    fieldsEl.classList.add('on');
+  }catch(e){statusEl.textContent='✗ Erro de ligação — verifica a ligação à internet.';statusEl.className='api-status err';}
+}
+
+// First-run modal
+document.getElementById('api-btn').addEventListener('click',()=>{
+  document.getElementById('api-modal').classList.remove('on');
+  showMain();
+  switchTab('settings');
+});
+
+function showApiModal(){
+  document.getElementById('api-modal').classList.add('on');
+}
+
+// ── TABS ──
+function switchTab(tab){
+  currentTab=tab;
+  ['col','wish','stats','settings'].forEach(t=>{
+    document.getElementById(`panel-${t}`).classList.toggle('active',t===tab);
+    document.getElementById(`tab-${t}`).classList.toggle('active',t===tab);
+  });
+  const titles={col:'A minha coleção',wish:'Wishlist ⭐',stats:'Estatísticas 📊',settings:'Definições ⚙️'};
+  document.getElementById('header-title').textContent=titles[tab];
+  const showS=tab!=='stats'&&tab!=='settings';
+  document.getElementById('set-input').style.display=showS?'':'none';
+  document.getElementById('add-btn').style.display=showS?'':'none';
+  // Header action buttons: show on col/wish, hide on stats/settings
+  const lk=tab==='wish'?'wish':'col';
+  ['hdr-html','hdr-csv','hdr-upd'].forEach(id=>{
+    const el=document.getElementById(id); if(el) el.style.display=showS?'':'none';
+  });
+  if(showS){
+    document.getElementById('hdr-html').onclick=()=>exportHTML(lk);
+    document.getElementById('hdr-csv').onclick=()=>exportCSV(lk);
+    document.getElementById('hdr-upd').onclick=()=>updateAllEstimates(lk);
+  }
+  document.getElementById('set-input').placeholder=tab==='wish'?'Número do set para a wishlist…':'Número do set (ex: 21051)';
+  if(tab==='stats') renderStats();
+  if(tab==='settings') renderFieldMatrix();
+}
+
+// ── LOADING ──
+function setLoading(on){
+  const btn=document.getElementById('add-btn'),inp=document.getElementById('set-input');
+  btn.disabled=on; inp.disabled=on;
+  btn.innerHTML=on?'<span class="spinner-sm"></span>':'+ Add';
+  if(on){
+    const hint=document.getElementById('hint');
+    hint.textContent='🔍 A pesquisar…';
+    hint.style.color='rgba(255,255,255,.8)';
+    hint.classList.add('on');
+  }
+  // when turning off, let apiFeedback or addSet manage the hint visibility
+}
+
+// ── ADD SET ──
+document.getElementById('set-input').addEventListener('keydown',e=>{if(e.key==='Enter') addSet();});
+document.getElementById('add-btn').addEventListener('click',addSet);
+
+// ── REFRESH MISSING FIELDS ──
+// Re-fetches subtheme, category, exit_date for sets that don't have them yet
+async function refreshMissingFields(){
+  const hasApi = apiConfig.rb.key || apiConfig.bs.key || apiConfig.bl.consumerKey;
+  if(!hasApi) return;
+  const allLists = [{list:collection, name:'collection'}, {list:wishlist, name:'wishlist'}];
+  for(const {list, name} of allLists){
+    for(const s of list){
+      // Refresh if missing any Brickset-only fields
+      const needsRefresh = !s.subtheme || !s.category || !s.exit_date ||
+                           !s.price_retail || Object.keys(s.price_retail||{}).length === 0;
+      if(!needsRefresh) continue;
+      try{
+        const numBase = (s.set_num||'').replace(/-\d+$/,'');
+        const bs = await lookupBrickset(numBase);
+        if(!bs) continue;
+        let changed = false;
+        if(bs.theme_name){ s.theme_name = bs.theme_name; changed = true; }
+        if(bs.subtheme !== undefined){ s.subtheme = bs.subtheme || null; changed = true; }
+        if(bs.category !== undefined){ s.category = bs.category || null; changed = true; }
+        if(bs.exit_date){ s.exit_date = bs.exit_date; changed = true; }
+        if(bs.price_retail && Object.keys(bs.price_retail).length > 0){
+          s.price_retail = bs.price_retail; changed = true;
+        }
+        if(changed) await fsSaveItem(name, s);
+      }catch(e){ /* silent */ }
+    }
+  }
+  renderAll();
+}
+
+// ── MULTI-API LOOKUP — with live feedback ──
+
+function apiFeedback(msg, type='info'){
+  // type: 'info' | 'ok' | 'err'
+  const el = document.getElementById('hint');
+  if(!el) return;
+  el.textContent = msg;
+  el.className = 'hint on';
+  el.style.color = type==='ok' ? '#90ee90' : type==='err' ? '#ffaaaa' : 'rgba(255,255,255,.8)';
+}
+
+async function lookupRebrickable(num){
+  if(!apiConfig.rb.enabled || !apiConfig.rb.key) return null;
+  const n = num.includes('-') ? num : num+'-1';
+  try{
+    const res = await fetch(`https://rebrickable.com/api/v3/lego/sets/${n}/`, {
+      headers: { 'Authorization': `key ${apiConfig.rb.key}` }
+    });
+    if(!res.ok) return null;
+    const d = await res.json();
+    // Rebrickable: fetch theme name via separate call if only theme_id available
+    let themeName = d.theme_name || null;
+    if(!themeName && d.theme_id){
+      try{
+        const tr = await fetch(`https://rebrickable.com/api/v3/lego/themes/${d.theme_id}/`, {
+          headers: { 'Authorization': `key ${apiConfig.rb.key}` }
+        });
+        if(tr.ok){ const td=await tr.json(); themeName=td.name||null; }
+      }catch(e){}
+    }
+    return { _src:'rb', set_num:d.set_num, name:d.name, num_parts:d.num_parts||0,
+             year:d.year||null, theme_name:themeName, set_img_url:d.set_img_url||null,
+             price_retail:{}, exit_date:null };
+  }catch(e){ return null; }
+}
+
+// ── BRICKSET CORS PROXY ──
+// The Brickset API does not support CORS — we use a Firebase Cloud Function as proxy.
+// Setup instructions: see the firebase-function/ folder in the project.
+// If the function URL is not configured, falls back to public proxies (less reliable).
+
+// Set this after deploying your Firebase Function:
+// Firebase Console → Functions → bricksetProxy → copy the URL
+// Format: https://us-central1-YOUR-PROJECT.cloudfunctions.net/bricksetProxy
+// BRICKSET_FUNCTION_URL is read dynamically in fetchViaCorsProxy
+
+async function fetchViaCorsProxy(targetUrl, timeoutMs=12000){
+  const proxies = [];
+
+  // 1. Firebase Cloud Function (own proxy — most reliable, no Cloudflare WAF issues)
+  const BRICKSET_FUNCTION_URL = localStorage.getItem('lego_bs_function_url')||'';
+  if(BRICKSET_FUNCTION_URL){
+    proxies.push({ name:'Firebase Function', fn: async () => {
+      // Extract params from targetUrl and call our function
+      const u = new URL(targetUrl);
+      const apiKey = u.searchParams.get('apiKey');
+      const params = u.searchParams.get('params');
+      // Determine which method from the URL path
+      const method = u.pathname.split('/').pop();
+      const fnUrl = `${BRICKSET_FUNCTION_URL}?apiKey=${encodeURIComponent(apiKey)}&method=${method}&params=${encodeURIComponent(params||'{}')}`;
+      const r = await fetch(fnUrl);
+      return r.ok ? r.text() : null;
+    }});
+  }
+
+  // 2. Public CORS proxies as fallback
+  proxies.push(
+    { name:'corsproxy.io', fn: async () => {
+      const r = await fetch('https://corsproxy.io/?' + encodeURIComponent(targetUrl));
+      return r.ok ? r.text() : null;
+    }},
+    { name:'allorigins', fn: async () => {
+      const r = await fetch('https://api.allorigins.win/get?url=' + encodeURIComponent(targetUrl));
+      if(!r.ok) return null;
+      const j = await r.json();
+      return j?.contents || null;
+    }},
+    { name:'codetabs', fn: async () => {
+      const r = await fetch('https://api.codetabs.com/v1/proxy/?quest=' + encodeURIComponent(targetUrl));
+      return r.ok ? r.text() : null;
+    }},
+    { name:'thingproxy', fn: async () => {
+      const r = await fetch('https://thingproxy.freeboard.io/fetch/' + targetUrl);
+      return r.ok ? r.text() : null;
+    }}
+  );
+
+  for(const proxy of proxies){
+    try{
+      const text = await Promise.race([
+        proxy.fn(),
+        new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),timeoutMs))
+      ]);
+      if(text && text.includes('"status"')){
+        console.log(`[Brickset] proxy OK: ${proxy.name}`);
+        return text;
+      }
+    }catch(e){
+      console.log(`[Brickset] proxy fail (${proxy.name}):`, e.message);
+    }
+  }
+  return null;
+}
+
+// ── BRICKSET CSV DATABASE ──
+// CSV loaded once from GitHub and cached in memory
+let bricksetDB = null;
+let bricksetDBLoading = false;
+let bricksetDBCallbacks = [];
+
+const BRICKSET_CSV_URL = 'https://raw.githubusercontent.com/plp8mail-crypto/lego-colecao/main/LEGO_Dados_Brutos.csv';
+
+async function loadBricksetDB(){
+  if(bricksetDB) return bricksetDB;
+  if(bricksetDBLoading){
+    // Wait for existing load to finish
+    return new Promise(resolve => bricksetDBCallbacks.push(resolve));
+  }
+  bricksetDBLoading = true;
+  try{
+    console.log('[Brickset] Loading CSV database...');
+    const r = await fetch(BRICKSET_CSV_URL);
+    if(!r.ok) throw new Error('HTTP ' + r.status);
+    const text = await r.text();
+    const lines = text.split('\n');
+    const headers = lines[0].split(',');
+    bricksetDB = {};
+    for(let i = 1; i < lines.length; i++){
+      if(!lines[i].trim()) continue;
+      // Parse CSV line (handle quoted fields)
+      const fields = parseCSVLine(lines[i]);
+      const row = {};
+      headers.forEach((h, idx) => row[h.trim()] = (fields[idx]||'').trim());
+      const num = row['number'];
+      if(num) bricksetDB[num] = row;
+    }
+    console.log('[Brickset] CSV loaded:', Object.keys(bricksetDB).length, 'sets');
+    bricksetDBCallbacks.forEach(cb => cb(bricksetDB));
+    bricksetDBCallbacks = [];
+    return bricksetDB;
+  }catch(e){
+    console.error('[Brickset] Failed to load CSV:', e);
+    bricksetDBLoading = false;
+    bricksetDBCallbacks.forEach(cb => cb(null));
+    bricksetDBCallbacks = [];
+    return null;
+  }
+}
+
+function parseCSVLine(line){
+  const result = [];
+  let current = '';
+  let inQuotes = false;
+  for(let i = 0; i < line.length; i++){
+    const ch = line[i];
+    if(ch === '"'){
+      inQuotes = !inQuotes;
+    } else if(ch === ',' && !inQuotes){
+      result.push(current);
+      current = '';
+    } else {
+      current += ch;
+    }
+  }
+  result.push(current);
+  return result;
+}
+
+function parsePrice(val){
+  if(!val || val === '{}' || val === 'None' || val === '') return null;
+  // Try to extract price from dict-like string e.g. "{'retailPrice': 49.99}"
+  const m = val.match(/retailPrice['":\s]+([\d.]+)/);
+  return m ? parseFloat(m[1]) : null;
+}
+
+async function lookupBrickset(num){
+  if(!apiConfig.bs.enabled) return null;
+  const setNum = num.replace(/-\d+$/, '');
+
+  // Check Firestore cache first
+  if(uid){
+    try{
+      const cacheDoc = await db.collection('users').doc(uid)
+                               .collection('cache_brickset').doc(setNum).get();
+      if(cacheDoc.exists){
+        console.log('[Brickset] cache hit:', setNum);
+        return cacheDoc.data();
+      }
+    }catch(e){}
+  }
+
+  // Load CSV database
+  const db_csv = await loadBricksetDB();
+  if(!db_csv) return null;
+
+  const row = db_csv[setNum];
+  if(!row) return null;
+
+  // Parse LEGOCom prices from CSV string representation
+  const legocom = row['LEGOCom'] || '';
+  const priceDE = parsePrice(legocom.match(/'DE':\s*({[^}]*})/)?.[1] || '');
+  const priceUS = parsePrice(legocom.match(/'US':\s*({[^}]*})/)?.[1] || '');
+  const priceUK = parsePrice(legocom.match(/'UK':\s*({[^}]*})/)?.[1] || '');
+  const priceCA = parsePrice(legocom.match(/'CA':\s*({[^}]*})/)?.[1] || '');
+
+  const retail = {};
+  if(priceUS) retail.US = priceUS;
+  if(priceUK) retail.UK = priceUK;
+  if(priceCA) retail.CA = priceCA;
+  if(priceDE) retail.DE = priceDE;
+
+  // Parse image URL
+  const imageStr = row['image'] || '';
+  const imageURL = imageStr.match(/imageURL['":\s]+'([^']+)'/)?.[1] || '';
+
+  const exitDate = row['exitDate'] || null;
+
+  const result = {
+    _src: 'bs',
+    set_num: setNum + '-1',
+    name: row['name'] || null,
+    num_parts: parseInt(row['pieces']) || 0,
+    year: parseInt(row['year']) || null,
+    theme_name: row['theme'] || null,
+    subtheme: row['subtheme'] || null,
+    category: row['category'] || null,
+    set_img_url: imageURL || null,
+    price_retail: retail,
+    exit_date: exitDate ? exitDate.slice(0, 10) : null
+  };
+
+  // Save to Firestore cache
+  if(uid){
+    try{
+      await db.collection('users').doc(uid)
+              .collection('cache_brickset').doc(setNum).set(result);
+    }catch(e){}
+  }
+
+  return result;
+}
+
+// Also expose checkBricksetKey - with CSV always returns valid
+async function checkBricksetKey(){
+  const db_csv = await loadBricksetDB();
+  return db_csv !== null;
+}
+
+
+async function checkBricksetKey(){
+  if(!apiConfig.bs.key) return false;
+  const targetUrl = `https://brickset.com/api/v3.asmx/checkKey?apiKey=${encodeURIComponent(apiConfig.bs.key)}`;
+  const text = await fetchViaCorsProxy(targetUrl, 8000);
+  return text && text.includes('"valid"');
+}
+
+async function lookupBricklink(num){
+  if(!apiConfig.bl.enabled || !apiConfig.bl.consumerKey) return null;
+  const setNum = num.replace(/-\d+$/,'') + '-1';
+  try{
+    const method='GET', baseUrl=`https://api.bricklink.com/api/store/v1/items/SET/${encodeURIComponent(setNum)}`;
+    const ts=Math.floor(Date.now()/1000).toString();
+    const nonce=Math.random().toString(36).substr(2)+Math.random().toString(36).substr(2);
+    const oauthParams=[
+      ['oauth_consumer_key', apiConfig.bl.consumerKey],
+      ['oauth_nonce', nonce],
+      ['oauth_signature_method','HMAC-SHA1'],
+      ['oauth_timestamp', ts],
+      ['oauth_token', apiConfig.bl.tokenValue],
+      ['oauth_version','1.0']
+    ];
+    const paramStr = oauthParams.sort((a,b)=>a[0]<b[0]?-1:1)
+      .map(([k,v])=>`${encodeURIComponent(k)}=${encodeURIComponent(v)}`).join('&');
+    const base = `${method}&${encodeURIComponent(baseUrl)}&${encodeURIComponent(paramStr)}`;
+    const signingKey = `${encodeURIComponent(apiConfig.bl.consumerSecret)}&${encodeURIComponent(apiConfig.bl.tokenSecret)}`;
+    const enc = new TextEncoder();
+    const key = await crypto.subtle.importKey('raw', enc.encode(signingKey),
+      {name:'HMAC',hash:'SHA-1'}, false, ['sign']);
+    const sig = await crypto.subtle.sign('HMAC', key, enc.encode(base));
+    const signature = btoa(String.fromCharCode(...new Uint8Array(sig)));
+    const authHeader = `OAuth oauth_consumer_key="${apiConfig.bl.consumerKey}",`+
+      `oauth_token="${apiConfig.bl.tokenValue}",oauth_signature_method="HMAC-SHA1",`+
+      `oauth_timestamp="${ts}",oauth_nonce="${nonce}",oauth_version="1.0",`+
+      `oauth_signature="${encodeURIComponent(signature)}"`;
+    const res = await fetch(baseUrl, { headers:{ Authorization: authHeader } });
+    if(!res.ok) return null;
+    const d = await res.json();
+    const item = d.data; if(!item) return null;
+    return { _src:'bl', set_num:item.no+'-1', name:item.name, num_parts:0,
+             year:item.year_released||null, theme_name:item.category_name||null,
+             set_img_url:null, price_retail:{}, exit_date:null };
+  }catch(e){ return null; }
+}
+
+function pickField(field, rb, bs, bl){
+  const pref = fieldSources[field] || 'auto';
+  const sources = {rb, bs, bl};
+  if(pref !== 'auto' && sources[pref]?.[field] != null) return sources[pref][field];
+  for(const src of [rb, bs, bl]){ if(src?.[field] != null) return src[field]; }
+  return null;
+}
+
+async function lookupSet(num){
+  const numBase = num.replace(/-\d+$/, '');
+  const active = {
+    rb: apiConfig.rb.enabled && apiConfig.rb.key,
+    bs: apiConfig.bs.enabled && apiConfig.bs.key,
+    bl: apiConfig.bl.enabled && apiConfig.bl.consumerKey
+  };
+  const apis = Object.entries(active).filter(([,v])=>v).map(([k])=>k);
+  if(!apis.length) return null;
+
+  apiFeedback(`🔍 A consultar ${apis.map(a=>({rb:'Rebrickable',bs:'Brickset',bl:'Bricklink'}[a])).join(', ')}…`);
+
+  const [rb, bs, bl] = await Promise.all([
+    lookupRebrickable(numBase),
+    lookupBrickset(numBase),
+    lookupBricklink(numBase)
+  ]);
+
+  const primary = rb || bs || bl;
+  if(!primary) return null;
+
+  const sources = Object.fromEntries(
+    Object.entries({rb,bs,bl}).filter(([,v])=>v!=null)
+  );
+  const srcNames = Object.keys(sources).map(k=>({rb:'Rebrickable',bs:'Brickset',bl:'Bricklink'}[k]));
+  apiFeedback(`✓ Dados de: ${srcNames.join(', ')}`, 'ok');
+
+  const price_retail = (bs?.price_retail) || {};
+  const theme_raw  = pickField('theme_name', rb, bs, bl);
+  const subtheme   = bs?.subtheme || null;
+  const category   = bs?.category || null;
+  // Store theme and subtheme separately; display combines them in cardHTML
+  return {
+    set_num:    pickField('set_num',    rb, bs, bl) || primary.set_num,
+    name:       pickField('name',       rb, bs, bl) || primary.name,
+    num_parts:  pickField('num_parts',  rb, bs, bl) || 0,
+    year:       pickField('year',       rb, bs, bl),
+    theme_name: theme_raw,
+    subtheme:   subtheme,
+    category:   category,
+    set_img_url:pickField('set_img_url',rb, bs, bl),
+    price_retail,
+    exit_date:  bs?.exit_date || null,
+  };
+}
+
+async function addSet(){
+  const num=document.getElementById('set-input').value.trim(); if(!num) return;
+  const list=currentTab==='wish'?wishlist:collection;
+  const listName=currentTab==='wish'?'wishlist':'collection';
+  if(list.find(s=>s.set_num?.replace(/-\d+$/,'')===num.replace(/-\d+$/,''))){toast('Já está na lista!',false);return;}
+  const hasApi=apiConfig.rb.key||apiConfig.bs.key||apiConfig.bl.consumerKey;
+  if(!hasApi){toast('Configura pelo menos uma API nas Definições.',false);switchTab('settings');return;}
+  setLoading(true);
+  try{
+    const data=await lookupSet(num);
+    if(!data){
+      apiFeedback('⚠️ Set não encontrado em nenhuma API activa.','err');
+      setTimeout(()=>{document.getElementById('hint').classList.remove('on');},3000);
+    } else {
+      const item={set_num:data.set_num,name:data.name,num_parts:data.num_parts||0,year:data.year||null,theme_name:data.theme_name||null,subtheme:data.subtheme||null,category:data.category||null,set_img_url:data.set_img_url||null,added:new Date().toISOString(),photos:[],price_official:null,price_paid:null,price_estimated:null,price_retail:data.price_retail||{},exit_date:data.exit_date||null,currency:'€'};
+      await fsSaveItem(listName,item);
+      list.unshift(item);
+      document.getElementById('set-input').value='';
+      document.getElementById('hint').classList.remove('on');
+      renderAll();
+      toast(`✓ "${data.name}" adicionado!`);
+    }
+  }catch(e){
+    apiFeedback('❌ Erro de ligação. Verifica as APIs nas Definições.','err');
+    setTimeout(()=>{document.getElementById('hint').classList.remove('on');},3000);
+  }
+  setLoading(false);
+}
+
+// ── REMOVE ──
+async function removeItem(listKey,setNum){
+  const list=listKey==='col'?collection:wishlist;
+  const listName=listKey==='col'?'collection':'wishlist';
+  const idx=list.findIndex(s=>s.set_num===setNum);
+  if(idx===-1) return;
+  if(!confirm(`Remover "${list[idx].name}"?`)) return;
+  const item=list.splice(idx,1)[0];
+  await fsDeleteItem(listName,item);
+  renderAll();
+  toast('Set removido.',false);
+}
+
+// ── MOVE WISH→COL ──
+async function moveToCol(setNum){
+  const idx=wishlist.findIndex(s=>s.set_num===setNum);
+  if(idx===-1) return;
+  const item=wishlist.splice(idx,1)[0];
+  await fsDeleteItem('wishlist',item);
+  const newItem={...item,id:null,added:new Date().toISOString()};
+  delete newItem.id;
+  if(!collection.find(s=>s.set_num===setNum)){
+    await fsSaveItem('collection',newItem);
+    collection.unshift(newItem);
+  }
+  renderAll();
+  toast(`✓ "${item.name}" movido para a coleção!`);
+}
+
+// ── BADGE INLINE EDIT ──
+function startBadge(el,listKey,setNum,field,current){
+  el.innerHTML=`<input style="width:80px;border:none;background:transparent;font-size:10px;font-weight:600;font-family:'DM Sans',sans-serif;outline:none;color:var(--text);" value="${current}" placeholder="Tema…" autofocus/>`;
+  const inp=el.querySelector('input'); inp.focus(); inp.select();
+  const save_=async()=>{
+    const list=listKey==='col'?collection:wishlist, listName=listKey==='col'?'collection':'wishlist';
+    const item=list.find(s=>s.set_num===setNum);
+    if(item){ item[field]=inp.value.trim()||null; await fsSaveItem(listName,item); }
+    renderAll();
+  };
+  inp.addEventListener('blur',save_);
+  inp.addEventListener('keydown',e=>{if(e.key==='Enter') inp.blur();});
+}
+
+function startBadgeDate(el,listKey,setNum,field,current){
+  el.innerHTML=`<input type="date" style="width:110px;border:none;background:transparent;font-size:10px;font-weight:600;font-family:'DM Sans',sans-serif;outline:none;color:var(--text);" value="${current}" autofocus/>`;
+  const inp=el.querySelector('input'); inp.focus();
+  const save_=async()=>{
+    const list=listKey==='col'?collection:wishlist, listName=listKey==='col'?'collection':'wishlist';
+    const item=list.find(s=>s.set_num===setNum);
+    if(item){ item[field]=inp.value||null; await fsSaveItem(listName,item); }
+    renderAll();
+  };
+  inp.addEventListener('blur',save_);
+  inp.addEventListener('change',()=>inp.blur());
+}
+
+async function changeCurrency(setNum,listKey,val){
+  const list=listKey==='col'?collection:wishlist, listName=listKey==='col'?'collection':'wishlist';
+  const item=list.find(s=>s.set_num===setNum);
+  if(item){ item.currency=val; await fsSaveItem(listName,item); renderAll(); }
+}
+
+// ── MANUAL REFRESH ALL FROM APIs ──
+async function manualRefreshAll(listKey){
+  const list = listKey==='col'?collection:wishlist;
+  const listName = listKey==='col'?'collection':'wishlist';
+  if(!list.length){ toast('Sem sets para actualizar.',false); return; }
+  const hasApi = apiConfig.rb.key || apiConfig.bs.key || apiConfig.bl.consumerKey;
+  if(!hasApi){ toast('Configura pelo menos uma API nas Definições.',false); return; }
+  const ov=document.getElementById('updating-overlay');
+  const msg=document.getElementById('updating-msg');
+  ov.classList.add('on');
+  let updated=0;
+  for(let i=0;i<list.length;i++){
+    const s=list[i];
+    msg.textContent=`A actualizar ${i+1}/${list.length}: ${s.name}…`;
+    try{
+      const numBase=(s.set_num||'').replace(/-\d+$/,'');
+      const bs=await lookupBrickset(numBase);
+      const rb=await lookupRebrickable(numBase);
+      let changed=false;
+      if(rb){
+        if(rb.name&&rb.name!==s.name){ s.name=rb.name; changed=true; }
+        if(rb.num_parts&&rb.num_parts!==s.num_parts){ s.num_parts=rb.num_parts; changed=true; }
+        if(rb.set_img_url&&!s.set_img_url){ s.set_img_url=rb.set_img_url; changed=true; }
+        if(rb.theme_name&&!s.theme_name){ s.theme_name=rb.theme_name; changed=true; }
+      }
+      if(bs){
+        if(bs.theme_name){ s.theme_name=bs.theme_name; changed=true; }
+        if(bs.subtheme!==undefined){ s.subtheme=bs.subtheme||null; changed=true; }
+        if(bs.category!==undefined){ s.category=bs.category||null; changed=true; }
+        if(bs.exit_date){ s.exit_date=bs.exit_date; changed=true; }
+        if(bs.price_retail&&Object.keys(bs.price_retail).length){ s.price_retail=bs.price_retail; changed=true; }
+      }
+      if(changed){ await fsSaveItem(listName,s); updated++; }
+    }catch(e){ /* continue */ }
+  }
+  ov.classList.remove('on');
+  renderAll();
+  toast(`✓ ${updated} set${updated!==1?'s':''} actualizados!`);
+}
+
+// ── UPDATE ALL ESTIMATES ──
+async function updateAllEstimates(listKey){
+  const list=listKey==='col'?collection:wishlist;
+  const listName=listKey==='col'?'collection':'wishlist';
+  if(!list.length){ toast('Sem sets para atualizar.',false); return; }
+  const ov=document.getElementById('updating-overlay');
+  const msg=document.getElementById('updating-msg');
+  ov.classList.add('on');
+  const now=new Date().toISOString();
+  let updated=0;
+  for(let i=0;i<list.length;i++){
+    const s=list[i];
+    msg.textContent=`A atualizar ${i+1}/${list.length}: ${s.name}…`;
+    if(s.price_estimated!=null){
+      s.price_estimated_date=now;
+      await fsSaveItem(listName,s);
+      updated++;
+    }
+  }
+  ov.classList.remove('on');
+  renderAll();
+  toast(`✓ ${updated} estimativa${updated!==1?'s':''} atualizadas!`);
+}
+
+// ── PRICE EDIT ──
+function startPrice(cell,listKey,setNum,field,current){
+  cell.onclick=null;
+  const lbl=cell.querySelector('.plabel').outerHTML;
+  cell.innerHTML=`${lbl}<input class="pinput" type="number" step="0.01" min="0" placeholder="0.00" value="${current??''}" autofocus/>`;
+  const inp=cell.querySelector('input');
+  inp.focus(); inp.select();
+  const save_=async()=>{
+    const list=listKey==='col'?collection:wishlist;
+    const listName=listKey==='col'?'collection':'wishlist';
+    const item=list.find(s=>s.set_num===setNum);
+    if(item){
+      const n=parseFloat(inp.value.replace(',','.'));
+      item[field]=isNaN(n)||inp.value===''?null:n;
+      // stamp or clear estimated date
+      if(field==='price_estimated'){
+        item.price_estimated_date = item[field]!=null ? new Date().toISOString() : null;
+      }
+      await fsSaveItem(listName,item);
+    }
+    renderAll();
+  };
+  inp.addEventListener('blur',save_);
+  inp.addEventListener('keydown',e=>{if(e.key==='Enter') inp.blur();});
+}
+
+// ── PHOTO UPLOAD ──
+document.getElementById('photo-input').addEventListener('change', async function(){
+  if(!this.files[0]||!lbPhotoTarget) return;
+  const {setNum,listKey,mode}=lbPhotoTarget;
+  lbPhotoTarget=null;
+  const file=this.files[0];
+  this.value='';
+
+  toast('📷 A enviar foto…');
+  try{
+    const url=await uploadToCloudinary(file);
+    const list=listKey==='col'?collection:wishlist;
+    const listName=listKey==='col'?'collection':'wishlist';
+    const item=list.find(s=>s.set_num===setNum);
+    if(item){
+      if(!item.photos) item.photos=[];
+      item.photos.push(url);
+      await fsSaveItem(listName,item);
+      if(mode==='lb'){ lbIdx=getAllImgs(item).length-1; renderLB(); }
+      renderAll();
+      toast('✓ Foto guardada na cloud!');
+    }
+  }catch(e){toast('Erro ao enviar foto.',false);}
+});
+
+function addPhotoCard(setNum,listKey){lbPhotoTarget={setNum,listKey,mode:'card'}; document.getElementById('photo-input').click();}
+
+// ── LIGHTBOX ──
+function getAllImgs(item){ const a=[]; if(item.set_img_url) a.push(item.set_img_url); if(item.photos) a.push(...item.photos); return a; }
+function openLB(setNum,listKey,idx){
+  lbSetNum=setNum; lbList=listKey; lbIdx=idx||0;
+  document.getElementById('lb').classList.add('on');
+  renderLB();
+}
+function closeLB(){ document.getElementById('lb').classList.remove('on'); }
+function renderLB(){
+  const list=lbList==='col'?collection:wishlist;
+  const item=list.find(s=>s.set_num===lbSetNum);
+  if(!item) return;
+  const imgs=getAllImgs(item);
+  lbIdx=Math.max(0,Math.min(lbIdx,imgs.length-1));
+  document.getElementById('lb-name').textContent=item.name;
+  const wrap=document.getElementById('lb-img');
+  wrap.innerHTML=imgs[lbIdx]?`<img src="${imgs[lbIdx]}" alt="${item.name}" onerror="this.parentNode.innerHTML='<img src="data:image/png;base64,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" style="width:60px;height:60px;object-fit:contain;" alt="">'">`:'<img src="data:image/png;base64,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" style="width:60px;height:60px;object-fit:contain;" alt="">';
+  document.getElementById('lb-cnt').textContent=`${lbIdx+1} / ${imgs.length}`;
+  document.getElementById('lb-prev').disabled=lbIdx===0;
+  document.getElementById('lb-next').disabled=lbIdx===imgs.length-1;
+  const isOfficial=lbIdx===0&&!!item.set_img_url;
+  document.getElementById('lb-del').style.display=isOfficial?'none':'inline-block';
+}
+function lbNav(dir){lbIdx+=dir; renderLB();}
+function lbAddPhoto(){ lbPhotoTarget={setNum:lbSetNum,listKey:lbList,mode:'lb'}; document.getElementById('photo-input').click(); }
+async function lbDelPhoto(){
+  const list=lbList==='col'?collection:wishlist;
+  const listName=lbList==='col'?'collection':'wishlist';
+  const item=list.find(s=>s.set_num===lbSetNum);
+  if(!item||!item.photos) return;
+  const photoIdx=item.set_img_url?lbIdx-1:lbIdx;
+  if(photoIdx<0||photoIdx>=item.photos.length) return;
+  item.photos.splice(photoIdx,1);
+  await fsSaveItem(listName,item);
+  lbIdx=Math.max(0,lbIdx-1);
+  renderLB(); renderAll();
+  toast('Foto removida.');
+}
+
+// ── SORT ──
+function sorted(list,srt,q){
+  let r=q?list.filter(s=>(s.name||'').toLowerCase().includes(q)||(s.set_num||'').toLowerCase().includes(q)||(s.theme_name||'').toLowerCase().includes(q)||String(s.year||'').includes(q)):[...list];
+  r.sort((a,b)=>{switch(srt){
+    case 'date-asc': return new Date(a.added)-new Date(b.added);
+    case 'date-desc':return new Date(b.added)-new Date(a.added);
+    case 'name-asc': return (a.name||'').localeCompare(b.name||'','pt');
+    case 'name-desc':return (b.name||'').localeCompare(a.name||'','pt');
+    case 'parts-desc':return (b.num_parts||0)-(a.num_parts||0);
+    case 'parts-asc': return (a.num_parts||0)-(b.num_parts||0);
+    case 'year-desc': return (b.year||0)-(a.year||0);
+    case 'year-asc':  return (a.year||0)-(b.year||0);
+    default: return 0;
+  }}); return r;
+}
+function fmtDate(iso){return new Date(iso).toLocaleDateString('pt-PT',{day:'numeric',month:'long',year:'numeric'});}
+function fmtEur(v){return v!=null?parseFloat(v).toLocaleString('pt-PT',{minimumFractionDigits:2,maximumFractionDigits:2})+' €':null;}
+
+// ── CARD ──
+function cardHTML(s,listKey,isWish){
+  const imgs=getAllImgs(s);
+  let slides=imgs.map((src,i)=>`<div class="gslide" onclick="openLB('${s.set_num}','${listKey}',${i})"><img src="${src}" onerror="this.parentNode.innerHTML='🧱'"/>${i>0?`<div class="photo-badge">📷 Foto ${i}</div>`:''}</div>`).join('');
+  slides+=`<div class="gadd" onclick="addPhotoCard('${s.set_num}','${listKey}')"><span>📷</span>Adicionar foto</div>`;
+  const dots=imgs.length>1?`<div class="gdots">${imgs.map((_,i)=>`<div class="dot${i===0?' active':''}"></div>`).join('')}</div>`:'';
+  const of=fmtEur(s.price_official), pa=fmtEur(s.price_paid), es=fmtEur(s.price_estimated);
+
+  // Year: show as MM-AAAA if we have month info, otherwise just year
+  const yearDisplay = s.year_month ? s.year_month
+    : s.year ? String(s.year) : null;
+
+  // Exit date: MM-AAAA format
+  const exitDisplay = s.exit_date ? (()=>{
+    const d=new Date(s.exit_date);
+    return String(d.getMonth()+1).padStart(2,'0')+'-'+d.getFullYear();
+  })() : null;
+
+  // Currency
+  const cur = s.currency || '€';
+  const curOpts = ['€','US','UK','CA'].map(c=>`<option value="${c}"${c===cur?' selected':''}>${c}</option>`).join('');
+
+  // Estimated date line
+  const estDateStr = (s.price_estimated != null && s.price_estimated_date)
+    ? `<div class="est-date">Estimado: ${new Date(s.price_estimated_date).toLocaleDateString('pt-PT',{day:'numeric',month:'short',year:'numeric'})}</div>`
+    : '';
+
+  // Build theme display: "Theme - Subtheme" when subtheme exists
+  // Handle both: items with separate subtheme field, and old items with combined theme_name
+  let themeDisplay = null;
+  if(s.theme_name){
+    if(s.subtheme && !s.theme_name.includes(' - ')){
+      themeDisplay = `${s.theme_name} - ${s.subtheme}`;
+    } else {
+      themeDisplay = s.theme_name; // either combined already, or no subtheme
+    }
+  }
+  const themeEsc = (themeDisplay||'').replace(/'/g,"\'").replace(/"/g,'&quot;');
+  const catEsc   = (s.category  ||'').replace(/'/g,"\'").replace(/"/g,'&quot;');
+
+  return `<div class="card">
+    <div class="gal">${slides}</div>${dots}
+    <div class="cb">
+      <div class="ctop">
+        <div class="cinfo"><div class="cnum">${s.set_num}</div><div class="cname">${s.name}</div></div>
+        <button class="dbtn" onclick="removeItem('${listKey}','${s.set_num}')">✕</button>
+      </div>
+
+      <div class="badges">
+        ${isWish?`<span class="badge-w">⭐ Wishlist</span>`:`<span class="badge-g">✓ Na coleção</span>`}
+        <span class="badge" style="cursor:pointer;" onclick="startBadge(this,'${listKey}','${s.set_num}','theme_name','${themeEsc}')">${themeDisplay||'—'}</span>
+        <span class="badge" style="cursor:pointer;background:#eef3fb;color:#0057a8;" onclick="startBadge(this,'${listKey}','${s.set_num}','category','${catEsc}')">${s.category||'—'}</span>
+        ${s.num_parts?`<span class="badge">${s.num_parts.toLocaleString('pt-PT')} peças</span>`:''}
+        ${yearDisplay?`<span class="badge">${yearDisplay}</span>`:''}
+        <span class="badge" style="cursor:pointer;background:#ffeaea;color:#c0000a;" onclick="startBadgeDate(this,'${listKey}','${s.set_num}','exit_date','${s.exit_date||''}')">${exitDisplay||'—'}</span>
+      </div>
+
+      <div style="display:flex;gap:5px;margin-bottom:4px;align-items:stretch;">
+        <div class="ccell">
+          <div class="ccell-label">Moeda</div>
+          <select class="ccell-select" onchange="changeCurrency('${s.set_num}','${listKey}',this.value)">${curOpts}</select>
+        </div>
+        <div class="pcell" style="flex:1;" onclick="startPrice(this,'${listKey}','${s.set_num}','price_official','${s.price_official??''}')">
+          <div class="plabel">Oficial LEGO</div>
+          <div class="pval ${!of?'empty':''}">${of||(()=>{
+            const r=s.price_retail||{};
+            const cc=s.currency||'€';
+            const sym={US:'$',UK:'£',CA:'CA$','€':'€',DE:'€'};
+            const key=cc==='€'?'DE':cc;
+            const v=r[key];
+            return v!=null?(sym[cc]||'')+parseFloat(v).toLocaleString('pt-PT',{minimumFractionDigits:2,maximumFractionDigits:2})+' *':'—';
+          })()}</div>
+        </div>
+        <div class="pcell" style="flex:1;" onclick="startPrice(this,'${listKey}','${s.set_num}','price_paid','${s.price_paid??''}')">
+          <div class="plabel">Paguei</div>
+          <div class="pval ${!pa?'empty':''}">${pa||'—'}</div>
+        </div>
+        <div class="pcell" style="flex:1;" onclick="startPrice(this,'${listKey}','${s.set_num}','price_estimated','${s.price_estimated??''}')">
+          <div class="plabel">Estimado</div>
+          <div class="pval ${!es?'empty':''}">${es||'—'}</div>
+        </div>
+      </div>
+      ${estDateStr}
+      <div class="cdate" style="margin-top:4px;">Adicionado: ${fmtDate(s.added)}</div>
+    </div>
+    ${isWish?`<button class="wbtn" onclick="moveToCol('${s.set_num}')">✓ Mover para a coleção</button>`:''}
+  </div>`;
+}
+
+// ── RENDERS ──
+function renderCol(){
+  const q=document.getElementById('col-fi').value.toLowerCase().trim();
+  const srt=document.getElementById('col-ss').value;
+  const list=sorted(collection,srt,q);
+  const tp=collection.reduce((a,s)=>a+(s.num_parts||0),0);
+  // Only sum EUR-currency sets (currency===€ or DE, or not set defaulting to €)
+  const isEur=item=>(item.currency||'€')==='€'||(item.currency||'€')==='DE'||(item.currency||'€')==='EUR';
+  const tp2=collection.reduce((a,s)=>a+(isEur(s)&&s.price_paid!=null?s.price_paid:0),0);
+  const te=collection.reduce((a,s)=>a+(isEur(s)&&s.price_estimated!=null?s.price_estimated:0),0);
+  document.getElementById('s-sets').textContent=collection.length;
+  document.getElementById('s-pcs').textContent=tp.toLocaleString('pt-PT');
+  document.getElementById('s-paid').textContent=tp2>0?tp2.toLocaleString('pt-PT',{maximumFractionDigits:0})+'€':'—';
+  document.getElementById('s-estimated').textContent=te>0?te.toLocaleString('pt-PT',{maximumFractionDigits:0})+'€':'—';
+  document.getElementById('col-sbar').classList.toggle('on',collection.length>0);
+  document.getElementById('col-tb').classList.toggle('on',collection.length>0);
+  const sec=document.getElementById('col-sec'); sec.classList.toggle('on',collection.length>0);
+  sec.textContent=`${collection.length} set${collection.length!==1?'s':''} na coleção`;
+  const el=document.getElementById('col-list');
+  if(!collection.length) el.innerHTML=`<div class="empty"><span class="empty-icon"><img src="data:image/png;base64,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" style="width:60px;height:60px;object-fit:contain;" alt=""></span><div class="empty-title">Coleção vazia</div><div class="empty-sub">Introduz o número de um set LEGO<br/>para o adicionar à coleção</div></div>`;
+  else if(!list.length) el.innerHTML=`<div class="no-res">Nenhum resultado para "${q}"</div>`;
+  else el.innerHTML=list.map(s=>cardHTML(s,'col',false)).join('');
+}
+
+function renderWish(){
+  const q=document.getElementById('wish-fi').value.toLowerCase().trim();
+  const srt=document.getElementById('wish-ss').value;
+  const list=sorted(wishlist,srt,q);
+  const tp=wishlist.reduce((a,s)=>a+(s.num_parts||0),0);
+  const to=wishlist.reduce((a,s)=>a+(s.price_official||0),0);
+  document.getElementById('w-sets').textContent=wishlist.length;
+  document.getElementById('w-pcs').textContent=tp.toLocaleString('pt-PT');
+  document.getElementById('w-ofic').textContent=to>0?to.toLocaleString('pt-PT',{maximumFractionDigits:0})+'€':'—';
+  document.getElementById('wish-sbar').classList.toggle('on',wishlist.length>0);
+  document.getElementById('wish-tb').classList.toggle('on',wishlist.length>0);
+  const sec=document.getElementById('wish-sec'); sec.classList.toggle('on',wishlist.length>0);
+  sec.textContent=`${wishlist.length} set${wishlist.length!==1?'s':''} na wishlist`;
+  const el=document.getElementById('wish-list');
+  if(!wishlist.length) el.innerHTML=`<div class="empty"><span class="empty-icon">⭐</span><div class="empty-title">Wishlist vazia</div><div class="empty-sub">Adiciona sets que queres comprar</div></div>`;
+  else if(!list.length) el.innerHTML=`<div class="no-res">Nenhum resultado para "${q}"</div>`;
+  else el.innerHTML=list.map(s=>cardHTML(s,'wish',true)).join('');
+}
+
+function renderStats(){
+  const C=['#e3000b','#0057a8','#FFD700','#1a7a3c','#ff6b35','#9b59b6','#e91e8c','#00bcd4','#ff9800','#607d8b'];
+  if(!collection.length){document.getElementById('scards').innerHTML=`<div class="empty" style="grid-column:1/-1"><span class="empty-icon">📊</span><div class="empty-title">Sem dados ainda</div></div>`;return;}
+  const tp=collection.reduce((a,s)=>a+(s.num_parts||0),0);
+  const tpaid=collection.reduce((a,s)=>a+(s.price_paid||0),0);
+  const tofic=collection.reduce((a,s)=>a+(s.price_official||0),0);
+  const avg=Math.round(tp/collection.length);
+  document.getElementById('scards').innerHTML=`
+    <div class="scard"><div class="scard-num">${collection.length}</div><div class="scard-label">Sets na coleção</div></div>
+    <div class="scard"><div class="scard-num">${tp.toLocaleString('pt-PT')}</div><div class="scard-label">Total de peças</div></div>
+    <div class="scard"><div class="scard-num">${avg.toLocaleString('pt-PT')}</div><div class="scard-label">Média de peças</div></div>
+    <div class="scard"><div class="scard-num">${tpaid>0?tpaid.toLocaleString('pt-PT',{maximumFractionDigits:0})+'€':'—'}</div><div class="scard-label">Total paguei</div></div>
+    <div class="scard"><div class="scard-num">${tofic>0?tofic.toLocaleString('pt-PT',{maximumFractionDigits:0})+'€':'—'}</div><div class="scard-label">Valor oficial total</div></div>
+    <div class="scard"><div class="scard-num">${wishlist.length}</div><div class="scard-label">Sets na wishlist</div></div>`;
+  const tm={};collection.forEach(s=>{if(s.theme_name)tm[s.theme_name]=(tm[s.theme_name]||0)+1;});
+  const tL=Object.keys(tm).sort((a,b)=>tm[b]-tm[a]);
+  drawChart('ch-themes','doughnut',tL,tL.map(k=>tm[k]),C);
+  const ym={};collection.forEach(s=>{if(s.year)ym[s.year]=(ym[s.year]||0)+1;});
+  const yL=Object.keys(ym).sort();
+  drawChart('ch-years','bar',yL,yL.map(k=>ym[k]),'#e3000b');
+  const top=[...collection].filter(s=>s.num_parts).sort((a,b)=>b.num_parts-a.num_parts).slice(0,8);
+  drawChart('ch-parts','bar',top.map(s=>s.name.length>18?s.name.slice(0,16)+'…':s.name),top.map(s=>s.num_parts),'#0057a8');
+}
+
+function drawChart(id,type,labels,data,colors){
+  const c=document.getElementById(id); if(!c) return;
+  if(charts[id]) charts[id].destroy();
+  const isArr=Array.isArray(colors);
+  charts[id]=new Chart(c,{type,data:{labels,datasets:[{data,backgroundColor:isArr?colors:colors,borderColor:type==='doughnut'?'#fff':(isArr?colors:colors),borderWidth:type==='doughnut'?2:0,borderRadius:type==='bar'?6:0}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:type==='doughnut',position:'bottom',labels:{font:{family:'DM Sans',size:11},boxWidth:12,padding:10}}},
+    scales:type==='bar'?{x:{ticks:{font:{family:'DM Sans',size:10},maxRotation:labels.length>5?35:0},grid:{display:false}},y:{ticks:{font:{family:'DM Sans',size:10}},grid:{color:'#f0f0f0'},beginAtZero:true}}:{}}});
+}
+
+function renderAll(){ renderCol(); renderWish(); if(currentTab==='stats') renderStats(); }
+
+// ── EXPORT ──
+function exportCSV(listKey){
+  const list=listKey==='col'?collection:wishlist; if(!list.length) return;
+  const h=['Set Num','Nome','Peças','Tema','Categoria','Ano','Exit Date','Moeda','Oficial','Paguei','Estimado','Data Estimado','Adicionado'];
+  const fmtMY=d=>{if(!d)return'';const dt=new Date(d);return String(dt.getMonth()+1).padStart(2,'0')+'-'+dt.getFullYear();};
+  const rows=list.map(s=>[
+    s.set_num,
+    `"${(s.name||'').replace(/"/g,'""')}"`,
+    s.num_parts||'',
+    `"${(s.theme_name||'').replace(/"/g,'""')}"`,
+    `"${(s.category||'').replace(/"/g,'""')}"`,
+    s.year||'',
+    fmtMY(s.exit_date),
+    s.currency||'€',
+    s.price_official!=null?parseFloat(s.price_official).toFixed(2):'',
+    s.price_paid!=null?s.price_paid.toFixed(2):'',
+    s.price_estimated!=null?s.price_estimated.toFixed(2):'',
+    s.price_estimated_date?new Date(s.price_estimated_date).toLocaleDateString('pt-PT'):'',
+    new Date(s.added).toLocaleDateString('pt-PT')
+  ].join(','));
+  const csv=[h.join(','),...rows].join('\n');
+  const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a'); a.href=url; a.download=`lego-${listKey}-${new Date().toISOString().slice(0,10)}.csv`; a.click();
+  URL.revokeObjectURL(url); toast('✓ CSV exportado!');
+}
+
+function exportHTML(listKey){
+  const list=listKey==='col'?collection:wishlist; if(!list.length){toast('Sem sets para exportar.',false);return;}
+  const title=listKey==='col'?'A minha coleção LEGO':'LEGO Wishlist';
+  const fmtMY=d=>{if(!d)return'—';const dt=new Date(d);return String(dt.getMonth()+1).padStart(2,'0')+'-'+dt.getFullYear();};
+  const fmtP=v=>v!=null?parseFloat(v).toLocaleString('pt-PT',{minimumFractionDigits:2,maximumFractionDigits:2})+' €':'—';
+  const rows=list.map(s=>{
+    const imgs=getAllImgs(s);
+    const imgHtml=imgs.length>0?`<img src="${imgs[0]}" style="width:120px;height:90px;object-fit:contain;border-radius:8px;background:#f5f5f5;" onerror="this.style.display='none'">`:'<div style="width:120px;height:90px;background:#f5f5f5;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:28px;"><img src="data:image/png;base64,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" style="width:40px;height:40px;object-fit:contain;"></div>';
+    return `<tr>
+      <td style="padding:10px;vertical-align:middle;text-align:center;">${imgHtml}</td>
+      <td style="padding:10px;vertical-align:top;">
+        <div style="font-size:11px;color:#999;font-family:monospace;">${s.set_num}</div>
+        <div style="font-size:15px;font-weight:700;margin-bottom:4px;">${s.name}</div>
+        <div style="font-size:12px;color:#555;">${[s.theme_name,s.category].filter(Boolean).join(' · ')}</div>
+      </td>
+      <td style="padding:10px;vertical-align:top;text-align:center;">
+        <div style="font-size:13px;font-weight:600;">${s.num_parts?s.num_parts.toLocaleString('pt-PT')+' peças':'—'}</div>
+        <div style="font-size:11px;color:#888;">${s.year||'—'}</div>
+      </td>
+      <td style="padding:10px;vertical-align:top;text-align:center;">
+        <div style="font-size:11px;color:#aaa;">Exit</div>
+        <div style="font-size:12px;font-weight:600;color:#c0000a;">${fmtMY(s.exit_date)}</div>
+      </td>
+      <td style="padding:10px;vertical-align:top;text-align:right;">
+        <div style="font-size:10px;color:#aaa;">Oficial</div><div style="font-size:12px;font-weight:600;">${fmtP(s.price_official)}</div>
+        <div style="font-size:10px;color:#aaa;margin-top:4px;">Paguei</div><div style="font-size:12px;font-weight:700;color:#1a7a3c;">${fmtP(s.price_paid)}</div>
+        <div style="font-size:10px;color:#aaa;margin-top:4px;">Estimado</div><div style="font-size:12px;font-weight:700;color:#0057a8;">${fmtP(s.price_estimated)}</div>
+      </td>
+    </tr>`;
+  }).join('<tr><td colspan="5" style="height:1px;background:#f0f0f0;padding:0;"></td></tr>');
+
+  const html=`<!DOCTYPE html><html lang="pt"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title>
+<style>body{font-family:'Segoe UI',sans-serif;background:#f5f5f7;margin:0;padding:20px;}
+h1{background:#e3000b;color:#fff;padding:16px 24px;border-radius:12px;font-size:20px;margin-bottom:20px;}
+h1 span{background:#FFD700;color:#000;padding:3px 8px;border-radius:4px;font-size:16px;margin-right:10px;}
+table{width:100%;border-collapse:collapse;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.08);}
+thead th{background:#1a1a1a;color:#fff;padding:10px 12px;font-size:12px;text-align:left;}
+tr:hover td{background:#fafafa;}
+</style></head><body>
+<h1><span>LEGO</span>${title}</h1>
+<p style="color:#666;font-size:13px;margin-bottom:16px;">Gerado em ${new Date().toLocaleDateString('pt-PT',{day:'numeric',month:'long',year:'numeric'})} · ${list.length} set${list.length!==1?'s':''}</p>
+<table><thead><tr>
+  <th>Imagem</th><th>Set</th><th>Peças / Ano</th><th>Exit Date</th><th style="text-align:right">Preços</th>
+</tr></thead><tbody>${rows}</tbody></table>
+</body></html>`;
+
+  const blob=new Blob([html],{type:'text/html;charset=utf-8;'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a'); a.href=url; a.download=`lego-${listKey}-${new Date().toISOString().slice(0,10)}.html`; a.click();
+  URL.revokeObjectURL(url); toast('✓ HTML exportado!');
+}
+
+// ── PASSWORD RECOVERY ──
+function openForgotPassword(){
+  const emailVal = document.getElementById('login-email').value.trim();
+  document.getElementById('forgot-email').value = emailVal;
+  document.getElementById('forgot-err').classList.remove('on');
+  document.getElementById('forgot-ok').classList.remove('on');
+  // Warn if URL not configured
+  const urlWarning = document.getElementById('forgot-url-warning');
+  if(urlWarning){
+    const savedUrl = localStorage.getItem('lego_app_url');
+    urlWarning.style.display = savedUrl ? 'none' : 'block';
+  }
+  document.getElementById('forgot-modal').classList.add('on');
+}
+function closeForgotModal(){
+  document.getElementById('forgot-modal').classList.remove('on');
+}
+async function sendForgotPassword(){
+  const email = document.getElementById('forgot-email').value.trim();
+  const errEl = document.getElementById('forgot-err');
+  const okEl  = document.getElementById('forgot-ok');
+  errEl.classList.remove('on'); okEl.classList.remove('on');
+  if(!email || !email.includes('@')){
+    errEl.textContent = 'Introduz um email válido.';
+    errEl.classList.add('on'); return;
+  }
+  try{
+    const actionCodeSettings = {
+      url: APP_URL,
+      handleCodeInApp: false
+    };
+    await auth.sendPasswordResetEmail(email, actionCodeSettings);
+    okEl.classList.add('on');
+    setTimeout(()=>closeForgotModal(), 3000);
+  }catch(e){
+    const msgs = {
+      'auth/user-not-found': 'Não existe conta com este email.',
+      'auth/invalid-email': 'Email inválido.',
+      'auth/too-many-requests': 'Demasiadas tentativas. Aguarda alguns minutos.',
+    };
+    errEl.textContent = msgs[e.code] || ('Erro: ' + e.message);
+    errEl.classList.add('on');
+  }
+}
+document.getElementById('forgot-email').addEventListener('keydown', e=>{
+  if(e.key==='Enter') sendForgotPassword();
+});
+
+// ── CHANGE PASSWORD ──
+function openChangePassword(){
+  document.getElementById('cpw-current').value='';
+  document.getElementById('cpw-new').value='';
+  document.getElementById('cpw-confirm').value='';
+  document.getElementById('cpw-err').classList.remove('on');
+  document.getElementById('cpw-ok').classList.remove('on');
+  document.getElementById('change-pw-modal').classList.add('on');
+}
+function closeChangePwModal(){
+  document.getElementById('change-pw-modal').classList.remove('on');
+}
+async function doChangePassword(){
+  const current = document.getElementById('cpw-current').value;
+  const newPw   = document.getElementById('cpw-new').value;
+  const confirm = document.getElementById('cpw-confirm').value;
+  const errEl   = document.getElementById('cpw-err');
+  const okEl    = document.getElementById('cpw-ok');
+  errEl.classList.remove('on'); okEl.classList.remove('on');
+  if(!current){ errEl.textContent='Introduz a senha actual.'; errEl.classList.add('on'); return; }
+  if(newPw.length < 6){ errEl.textContent='A nova senha deve ter pelo menos 6 caracteres.'; errEl.classList.add('on'); return; }
+  if(newPw !== confirm){ errEl.textContent='As senhas não coincidem.'; errEl.classList.add('on'); return; }
+  try{
+    // Re-authenticate first (required by Firebase before sensitive operations)
+    const user = auth.currentUser;
+    const credential = firebase.auth.EmailAuthProvider.credential(user.email, current);
+    await user.reauthenticateWithCredential(credential);
+    await user.updatePassword(newPw);
+    okEl.classList.add('on');
+    setTimeout(()=>closeChangePwModal(), 2500);
+    toast('✓ Senha alterada!');
+  }catch(e){
+    const msgs = {
+      'auth/wrong-password': 'Senha actual incorrecta.',
+      'auth/weak-password': 'A nova senha é demasiado fraca.',
+      'auth/too-many-requests': 'Demasiadas tentativas. Aguarda alguns minutos.',
+      'auth/requires-recent-login': 'Sessão expirada. Sai e volta a entrar.',
+      'auth/invalid-credential': 'Senha actual incorrecta.',
+    };
+    errEl.textContent = msgs[e.code] || ('Erro: ' + e.message);
+    errEl.classList.add('on');
+  }
+}
+
+// ── TOAST ──
+function toast(msg,ok=true){
+  const el=document.createElement('div');
+  el.className=`toast ${ok?'tok':'terr'}`; el.textContent=msg;
+  document.body.appendChild(el); setTimeout(()=>el.remove(),3200);
+}
+</script>
+
+<!-- FORGOT PASSWORD MODAL -->
+<div class="pw-modal" id="forgot-modal">
+  <div class="pw-box">
+    <div class="pw-title">🔑 Recuperar senha</div>
+    <div class="pw-sub">Introduz o teu email. Vais receber um link para definires uma nova senha.</div>
+    <div id="forgot-url-warning" style="display:none;background:#fff8e1;border:1px solid #ffe082;border-radius:8px;padding:10px 12px;font-size:11px;color:#7a5c00;margin-bottom:10px;line-height:1.5;">
+      ⚠️ Para o link de recuperação funcionar, configura primeiro o <strong>URL da aplicação</strong> nas Definições → 🌐 URL da aplicação.<br>
+      O URL deve ser: <code style="font-size:10px;">https://plp8mail-crypto.github.io/lego-colecao-vO.html</code>
+    </div>
+    <input class="pw-input" id="forgot-email" type="email" placeholder="o teu email…" autocomplete="email"/>
+    <div class="pw-err" id="forgot-err"></div>
+    <div class="pw-ok" id="forgot-ok">✓ Email enviado! Verifica a tua caixa de entrada e clica no link.</div>
+    <button class="pw-btn" onclick="sendForgotPassword()">Enviar email de recuperação</button>
+    <button class="pw-cancel" onclick="closeForgotModal()">Cancelar</button>
+  </div>
+</div>
+
+<!-- CHANGE PASSWORD MODAL -->
+<div class="pw-modal" id="change-pw-modal">
+  <div class="pw-box">
+    <div class="pw-title">🔒 Alterar senha</div>
+    <div class="pw-sub">Introduce a senha actual e a nova senha.</div>
+    <input class="pw-input" id="cpw-current" type="password" placeholder="Senha actual…"/>
+    <input class="pw-input" id="cpw-new" type="password" placeholder="Nova senha (mín. 6 caracteres)…"/>
+    <input class="pw-input" id="cpw-confirm" type="password" placeholder="Confirmar nova senha…"/>
+    <div class="pw-err" id="cpw-err"></div>
+    <div class="pw-ok" id="cpw-ok">✓ Senha alterada com sucesso!</div>
+    <button class="pw-btn" onclick="doChangePassword()">Alterar senha</button>
+    <button class="pw-cancel" onclick="closeChangePwModal()">Cancelar</button>
+  </div>
+</div>
+
+
+</body>
+</html>
