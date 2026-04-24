@@ -155,7 +155,7 @@
     .no-res{text-align:center;padding:30px 20px;color:var(--muted);font-size:14px;font-weight:600;}
 
     /* CARD */
-    .card{background:var(--surface);border-radius:16px;border:1px solid var(--border);margin-bottom:10px;overflow:hidden;box-shadow:var(--shadow);animation:fadeIn .3s ease;}
+    .card{background:var(--surface);border-radius:16px;border:1px solid var(--border);margin-bottom:10px;overflow:hidden;box-shadow:var(--shadow);animation:fadeIn .3s ease;content-visibility:auto;contain-intrinsic-size:auto 520px;}
     @keyframes fadeIn{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
 
     /* gallery */
@@ -211,8 +211,8 @@
     .lb.on{display:flex;}
     .lb-close{position:absolute;top:16px;right:16px;background:rgba(255,255,255,.15);border:none;color:#fff;font-size:22px;width:40px;height:40px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;}
     .lb-name{color:rgba(255,255,255,.75);font-size:12px;font-weight:600;text-align:center;padding:8px 24px;max-width:400px;}
-    .lb-img{flex:1;width:100%;padding:54px 16px 70px;min-height:0;overflow:hidden;display:flex;align-items:center;justify-content:center;}
-    .lb-img img{width:100%;height:100%;object-fit:contain;border-radius:8px;display:block;max-width:100%;max-height:100%;margin:auto;}
+    .lb-img{flex:1;width:100%;padding:54px 16px 70px;min-height:0;overflow:hidden;display:flex;box-sizing:border-box;}
+    .lb-img img{flex:1;width:100%;height:100%;min-height:0;object-fit:contain;border-radius:8px;display:block;}
     .lb-emoji{font-size:80px;}
     .lb-ctrl{display:flex;align-items:center;gap:16px;padding:8px 16px;}
     .lb-arr{background:rgba(255,255,255,.15);border:none;color:#fff;font-size:22px;width:44px;height:44px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;}
@@ -417,7 +417,7 @@
       <div class="stats-bar" id="col-sbar">
         <div class="sbar"><div class="sbar-num" id="s-sets">0</div><div class="sbar-label">Sets</div></div>
         <div class="sbar"><div class="sbar-num" id="s-pcs">0</div><div class="sbar-label">Peças</div></div>
-        <div class="sbar"><div class="sbar-num" id="s-paid">—</div><div class="sbar-label">Paguei €</div></div>
+        <div class="sbar"><div class="sbar-num" id="s-ofic">—</div><div class="sbar-label">Oficial €</div></div>
         <div class="sbar"><div class="sbar-num" id="s-estimated">—</div><div class="sbar-label">Estimado €</div></div>
       </div>
       <div class="toolbar" id="col-tb">
@@ -2079,11 +2079,18 @@ function renderCol(){
   const tp=collection.reduce((a,s)=>a+(s.num_parts||0),0);
   // Only sum EUR-currency sets (currency===€ or DE, or not set defaulting to €)
   const isEur=item=>(item.currency||'€')==='€'||(item.currency||'€')==='DE'||(item.currency||'€')==='EUR';
-  const tp2=collection.reduce((a,s)=>a+(isEur(s)&&s.price_paid!=null?s.price_paid:0),0);
+  // Official price sum: use manual price_official if set, otherwise fallback to price_retail.DE
+  const tofic=collection.reduce((a,s)=>{
+    if(!isEur(s)) return a;
+    if(s.price_official!=null) return a+parseFloat(s.price_official);
+    const r=s.price_retail||{};
+    if(r.DE!=null) return a+parseFloat(r.DE);
+    return a;
+  },0);
   const te=collection.reduce((a,s)=>a+(isEur(s)&&s.price_estimated!=null?s.price_estimated:0),0);
   document.getElementById('s-sets').textContent=collection.length;
   document.getElementById('s-pcs').textContent=tp.toLocaleString('pt-PT');
-  document.getElementById('s-paid').textContent=tp2>0?tp2.toLocaleString('pt-PT',{maximumFractionDigits:0})+'€':'—';
+  document.getElementById('s-ofic').textContent=tofic>0?tofic.toLocaleString('pt-PT',{maximumFractionDigits:0})+'€':'—';
   document.getElementById('s-estimated').textContent=te>0?te.toLocaleString('pt-PT',{maximumFractionDigits:0})+'€':'—';
   document.getElementById('col-sbar').classList.toggle('on',collection.length>0);
   document.getElementById('col-tb').classList.toggle('on',collection.length>0);
@@ -2100,8 +2107,16 @@ function renderWish(){
   const srt=document.getElementById('wish-ss').value;
   const list=sorted(wishlist,srt,q);
   const tp=wishlist.reduce((a,s)=>a+(s.num_parts||0),0);
-  const to=wishlist.reduce((a,s)=>a+(s.price_official||0),0);
-  const te=wishlist.reduce((a,s)=>a+(s.price_estimated||0),0);
+  const isEur=item=>(item.currency||'€')==='€'||(item.currency||'€')==='DE'||(item.currency||'€')==='EUR';
+  // Official sum: manual first, fallback to retail.DE (only EUR sets)
+  const to=wishlist.reduce((a,s)=>{
+    if(!isEur(s)) return a;
+    if(s.price_official!=null) return a+parseFloat(s.price_official);
+    const r=s.price_retail||{};
+    if(r.DE!=null) return a+parseFloat(r.DE);
+    return a;
+  },0);
+  const te=wishlist.reduce((a,s)=>a+(isEur(s)&&s.price_estimated!=null?parseFloat(s.price_estimated):0),0);
   document.getElementById('w-sets').textContent=wishlist.length;
   document.getElementById('w-pcs').textContent=tp.toLocaleString('pt-PT');
   document.getElementById('w-ofic').textContent=to>0?to.toLocaleString('pt-PT',{maximumFractionDigits:0})+'€':'—';
