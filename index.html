@@ -221,8 +221,8 @@
     .lb.on{display:flex;}
     .lb-close{position:absolute;top:16px;right:16px;background:rgba(255,255,255,.15);border:none;color:#fff;font-size:22px;width:40px;height:40px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;}
     .lb-name{color:rgba(255,255,255,.75);font-size:12px;font-weight:600;text-align:center;padding:8px 24px;max-width:400px;}
-    .lb-img{flex:1;display:flex;align-items:center;justify-content:center;width:100%;padding:60px 16px 10px;}
-    .lb-img img{max-width:100%;max-height:100%;object-fit:contain;border-radius:8px;}
+    .lb-img{flex:1;display:flex;align-items:center;justify-content:center;width:100%;padding:60px 16px 10px;min-height:0;}
+    .lb-img img{max-width:calc(100vw - 32px);max-height:calc(100vh - 180px);width:auto;height:auto;object-fit:contain;border-radius:8px;display:block;}
     .lb-emoji{font-size:80px;}
     .lb-ctrl{display:flex;align-items:center;gap:16px;padding:8px 16px;}
     .lb-arr{background:rgba(255,255,255,.15);border:none;color:#fff;font-size:22px;width:44px;height:44px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;}
@@ -518,6 +518,14 @@
         <button class="settings-save" onclick="saveFieldSources()">✓ Guardar preferências</button>
       </div>
 
+      <!-- VERSION -->
+      <div class="settings-section" style="background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:12px 14px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <span style="font-size:12px;color:var(--muted);font-weight:600;">Versão da aplicação</span>
+          <span id="app-version-display" style="font-size:12px;font-weight:800;color:var(--red);"></span>
+        </div>
+      </div>
+
       <!-- URL CONFIG -->
       <div class="settings-section">
         <div class="settings-title">🌐 URL da aplicação</div>
@@ -642,6 +650,7 @@
 </div>
 
 <script>
+const APP_VERSION='v2.5 — 2026-04-26';
 // ── CLOUDINARY ──
 const CL_CLOUD = 'dykkcxtp0';
 const CL_PRESET = 'lego_fotos';
@@ -1041,6 +1050,7 @@ function saveAppUrl(){
 }
 
 function loadSettingsUI(){
+  document.getElementById('app-version-display').textContent = APP_VERSION;
   // Brickset Function URL
   const bsFnInput = document.getElementById('bs-fn-url');
   const bsFnStatus = document.getElementById('bs-fn-status');
