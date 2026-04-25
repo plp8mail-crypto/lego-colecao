@@ -62,7 +62,17 @@
     .login-sent-sub{font-size:13px;color:rgba(255,255,255,.8);line-height:1.6;}
     .login-error{color:#ffcccc;font-size:13px;font-weight:600;text-align:center;display:none;}
     .login-error.on{display:block;}
-    /* Password recovery & change modal */
+    /* Confirm modal */
+    .confirm-modal{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center;z-index:1200;padding:20px;}
+    .confirm-modal.on{display:flex;}
+    .confirm-box{background:var(--surface);border-radius:18px;padding:24px 20px;max-width:320px;width:100%;box-shadow:0 8px 40px rgba(0,0,0,.18);text-align:center;}
+    .confirm-icon{font-size:36px;margin-bottom:10px;}
+    .confirm-title{font-weight:800;font-size:16px;color:var(--text);margin-bottom:8px;}
+    .confirm-msg{font-size:13px;color:var(--muted);margin-bottom:20px;line-height:1.5;}
+    .confirm-btns{display:flex;gap:10px;}
+    .confirm-btns button{flex:1;padding:12px;border:none;border-radius:10px;font-weight:700;font-size:13px;font-family:'DM Sans',sans-serif;cursor:pointer;}
+    .confirm-cancel{background:var(--border);color:var(--text);}
+    .confirm-ok{background:var(--red);color:#fff;}
     .pw-modal{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center;z-index:1100;padding:20px;}
     .pw-modal.on{display:flex;}
     .pw-box{background:var(--surface);border-radius:18px;padding:22px;width:100%;max-width:400px;max-height:90vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,.2);}
@@ -207,12 +217,12 @@
     .uploading-bar.on{display:flex;}
 
     /* LIGHTBOX */
-    .lb{display:none;position:fixed;inset:0;background:rgba(0,0,0,.94);z-index:500;flex-direction:column;}
+    .lb{display:none;position:fixed;inset:0;background:rgba(0,0,0,.94);z-index:500;flex-direction:column;align-items:center;justify-content:center;}
     .lb.on{display:flex;}
     .lb-close{position:absolute;top:16px;right:16px;background:rgba(255,255,255,.15);border:none;color:#fff;font-size:22px;width:40px;height:40px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;}
     .lb-name{color:rgba(255,255,255,.75);font-size:12px;font-weight:600;text-align:center;padding:8px 24px;max-width:400px;}
-    .lb-img{flex:1;width:100%;padding:54px 16px 70px;min-height:0;overflow:hidden;display:flex;box-sizing:border-box;}
-    .lb-img img{flex:1;width:100%;height:100%;min-height:0;object-fit:contain;border-radius:8px;display:block;}
+    .lb-img{flex:1;display:flex;align-items:center;justify-content:center;width:100%;padding:60px 16px 10px;}
+    .lb-img img{max-width:100%;max-height:100%;object-fit:contain;border-radius:8px;}
     .lb-emoji{font-size:80px;}
     .lb-ctrl{display:flex;align-items:center;gap:16px;padding:8px 16px;}
     .lb-arr{background:rgba(255,255,255,.15);border:none;color:#fff;font-size:22px;width:44px;height:44px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;}
@@ -357,6 +367,19 @@
 </div>
 
 <!-- FIRST RUN MODAL -->
+<!-- CONFIRM MODAL -->
+<div class="confirm-modal" id="confirm-modal">
+  <div class="confirm-box">
+    <div class="confirm-icon" id="confirm-icon">⚠️</div>
+    <div class="confirm-title" id="confirm-title"></div>
+    <div class="confirm-msg" id="confirm-msg"></div>
+    <div class="confirm-btns">
+      <button class="confirm-cancel" id="confirm-cancel">Cancelar</button>
+      <button class="confirm-ok" id="confirm-ok">Continuar</button>
+    </div>
+  </div>
+</div>
+
 <div class="api-modal" id="api-modal">
   <div class="api-box" style="text-align:center;">
     <div style="font-size:40px;margin-bottom:10px;">🔑</div>
@@ -1718,11 +1741,48 @@ async function lookupSet(num){
   };
 }
 
+// ── CONFIRM MODAL ──
+function showConfirm({icon='⚠️', title, msg, okLabel='Continuar', okClass='', cancelLabel='Cancelar'}){
+  return new Promise(resolve=>{
+    document.getElementById('confirm-icon').textContent=icon;
+    document.getElementById('confirm-title').textContent=title;
+    document.getElementById('confirm-msg').textContent=msg;
+    document.getElementById('confirm-ok').textContent=okLabel;
+    document.getElementById('confirm-cancel').textContent=cancelLabel;
+    const modal=document.getElementById('confirm-modal');
+    modal.classList.add('on');
+    const ok=document.getElementById('confirm-ok');
+    const cancel=document.getElementById('confirm-cancel');
+    const cleanup=()=>{ modal.classList.remove('on'); ok.onclick=null; cancel.onclick=null; };
+    ok.onclick=()=>{ cleanup(); resolve(true); };
+    cancel.onclick=()=>{ cleanup(); resolve(false); };
+  });
+}
+
 async function addSet(){
   const num=document.getElementById('set-input').value.trim(); if(!num) return;
-  const list=currentTab==='wish'?wishlist:collection;
-  const listName=currentTab==='wish'?'wishlist':'collection';
-  if(list.find(s=>s.set_num?.replace(/-\d+$/,'')===num.replace(/-\d+$/,''))){toast('Já está na lista!',false);return;}
+  const isWishTab=currentTab==='wish';
+  const list=isWishTab?wishlist:collection;
+  const listName=isWishTab?'wishlist':'collection';
+  const otherList=isWishTab?collection:wishlist;
+
+  // Already in same list?
+  if(list.find(s=>s.set_num?.replace(/-\d+$/,'')===num.replace(/-\d+$/,''))){
+    toast('Já está na lista!',false); return;
+  }
+
+  // Adding to wishlist but already in collection?
+  if(isWishTab && otherList.find(s=>s.set_num?.replace(/-\d+$/,'')===num.replace(/-\d+$/,''))){
+    const go=await showConfirm({
+      icon:'🧱',
+      title:'Já tens este set!',
+      msg:'Este set já existe na tua coleção. Queres mesmo adicioná-lo também à wishlist?',
+      okLabel:'Adicionar mesmo assim',
+      cancelLabel:'Cancelar'
+    });
+    if(!go) return;
+  }
+
   const hasApi=apiConfig.rb.key||apiConfig.bs.key||apiConfig.bl.consumerKey;
   if(!hasApi){toast('Configura pelo menos uma API nas Definições.',false);switchTab('settings');return;}
   setLoading(true);
@@ -1739,6 +1799,26 @@ async function addSet(){
       document.getElementById('hint').classList.remove('on');
       renderAll();
       toast(`✓ "${data.name}" adicionado!`);
+
+      // Added to collection — check if it's in wishlist
+      if(!isWishTab){
+        const wishIdx=wishlist.findIndex(s=>s.set_num?.replace(/-\d+$/,'')===item.set_num?.replace(/-\d+$/,''));
+        if(wishIdx!==-1){
+          const remove=await showConfirm({
+            icon:'⭐',
+            title:'Está na wishlist!',
+            msg:`"${item.name}" está na tua wishlist. Queres removê-lo agora que o adicionaste à coleção?`,
+            okLabel:'Remover da wishlist',
+            cancelLabel:'Manter'
+          });
+          if(remove){
+            const wItem=wishlist.splice(wishIdx,1)[0];
+            await fsDeleteItem('wishlist',wItem);
+            renderAll();
+            toast('Removido da wishlist.',false);
+          }
+        }
+      }
     }
   }catch(e){
     apiFeedback('❌ Erro de ligação. Verifica as APIs nas Definições.','err');
