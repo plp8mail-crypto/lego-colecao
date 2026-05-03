@@ -62,17 +62,7 @@
     .login-sent-sub{font-size:13px;color:rgba(255,255,255,.8);line-height:1.6;}
     .login-error{color:#ffcccc;font-size:13px;font-weight:600;text-align:center;display:none;}
     .login-error.on{display:block;}
-    /* Confirm modal */
-    .confirm-modal{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center;z-index:1200;padding:20px;}
-    .confirm-modal.on{display:flex;}
-    .confirm-box{background:var(--surface);border-radius:18px;padding:24px 20px;max-width:320px;width:100%;box-shadow:0 8px 40px rgba(0,0,0,.18);text-align:center;}
-    .confirm-icon{font-size:36px;margin-bottom:10px;}
-    .confirm-title{font-weight:800;font-size:16px;color:var(--text);margin-bottom:8px;}
-    .confirm-msg{font-size:13px;color:var(--muted);margin-bottom:20px;line-height:1.5;}
-    .confirm-btns{display:flex;gap:10px;}
-    .confirm-btns button{flex:1;padding:12px;border:none;border-radius:10px;font-weight:700;font-size:13px;font-family:'DM Sans',sans-serif;cursor:pointer;}
-    .confirm-cancel{background:var(--border);color:var(--text);}
-    .confirm-ok{background:var(--red);color:#fff;}
+    /* Password recovery & change modal */
     .pw-modal{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center;z-index:1100;padding:20px;}
     .pw-modal.on{display:flex;}
     .pw-box{background:var(--surface);border-radius:18px;padding:22px;width:100%;max-width:400px;max-height:90vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,.2);}
@@ -165,7 +155,7 @@
     .no-res{text-align:center;padding:30px 20px;color:var(--muted);font-size:14px;font-weight:600;}
 
     /* CARD */
-    .card{background:var(--surface);border-radius:16px;border:1px solid var(--border);margin-bottom:10px;overflow:hidden;box-shadow:var(--shadow);animation:fadeIn .3s ease;content-visibility:auto;contain-intrinsic-size:auto 520px;}
+    .card{background:var(--surface);border-radius:16px;border:1px solid var(--border);margin-bottom:10px;overflow:hidden;box-shadow:var(--shadow);animation:fadeIn .3s ease;}
     @keyframes fadeIn{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
 
     /* gallery */
@@ -217,12 +207,12 @@
     .uploading-bar.on{display:flex;}
 
     /* LIGHTBOX */
-    .lb{display:none;position:fixed;inset:0;background:rgba(0,0,0,.94);z-index:500;flex-direction:column;align-items:center;justify-content:center;}
+    .lb{display:none;position:fixed;inset:0;background:rgba(0,0,0,.94);z-index:500;flex-direction:column;}
     .lb.on{display:flex;}
     .lb-close{position:absolute;top:16px;right:16px;background:rgba(255,255,255,.15);border:none;color:#fff;font-size:22px;width:40px;height:40px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;}
     .lb-name{color:rgba(255,255,255,.75);font-size:12px;font-weight:600;text-align:center;padding:8px 24px;max-width:400px;}
-    .lb-img{flex:1;display:flex;align-items:center;justify-content:center;width:100%;padding:60px 16px 10px;min-height:0;}
-    .lb-img img{max-width:calc(100vw - 32px);max-height:calc(100vh - 180px);width:auto;height:auto;object-fit:contain;border-radius:8px;display:block;}
+    .lb-img{flex:1;width:100%;padding:54px 16px 70px;min-height:0;overflow:hidden;display:flex;align-items:center;justify-content:center;}
+    .lb-img img{width:100%;height:100%;object-fit:contain;border-radius:8px;display:block;max-width:100%;max-height:100%;margin:auto;}
     .lb-emoji{font-size:80px;}
     .lb-ctrl{display:flex;align-items:center;gap:16px;padding:8px 16px;}
     .lb-arr{background:rgba(255,255,255,.15);border:none;color:#fff;font-size:22px;width:44px;height:44px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;}
@@ -367,19 +357,6 @@
 </div>
 
 <!-- FIRST RUN MODAL -->
-<!-- CONFIRM MODAL -->
-<div class="confirm-modal" id="confirm-modal">
-  <div class="confirm-box">
-    <div class="confirm-icon" id="confirm-icon">⚠️</div>
-    <div class="confirm-title" id="confirm-title"></div>
-    <div class="confirm-msg" id="confirm-msg"></div>
-    <div class="confirm-btns">
-      <button class="confirm-cancel" id="confirm-cancel">Cancelar</button>
-      <button class="confirm-ok" id="confirm-ok">Continuar</button>
-    </div>
-  </div>
-</div>
-
 <div class="api-modal" id="api-modal">
   <div class="api-box" style="text-align:center;">
     <div style="font-size:40px;margin-bottom:10px;">🔑</div>
@@ -440,7 +417,7 @@
       <div class="stats-bar" id="col-sbar">
         <div class="sbar"><div class="sbar-num" id="s-sets">0</div><div class="sbar-label">Sets</div></div>
         <div class="sbar"><div class="sbar-num" id="s-pcs">0</div><div class="sbar-label">Peças</div></div>
-        <div class="sbar"><div class="sbar-num" id="s-ofic">—</div><div class="sbar-label">Oficial €</div></div>
+        <div class="sbar"><div class="sbar-num" id="s-paid">—</div><div class="sbar-label">Paguei €</div></div>
         <div class="sbar"><div class="sbar-num" id="s-estimated">—</div><div class="sbar-label">Estimado €</div></div>
       </div>
       <div class="toolbar" id="col-tb">
@@ -516,14 +493,6 @@
           <tbody id="field-matrix-body"></tbody>
         </table>
         <button class="settings-save" onclick="saveFieldSources()">✓ Guardar preferências</button>
-      </div>
-
-      <!-- VERSION -->
-      <div class="settings-section" style="background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:12px 14px;">
-        <div style="display:flex;align-items:center;justify-content:space-between;">
-          <span style="font-size:12px;color:var(--muted);font-weight:600;">Versão da aplicação</span>
-          <span id="app-version-display" style="font-size:12px;font-weight:800;color:var(--red);"></span>
-        </div>
       </div>
 
       <!-- URL CONFIG -->
@@ -640,7 +609,6 @@
   <input type="file" id="photo-input" accept="image/*" capture="environment"/>
 </div>
 
-
 <!-- UPDATING OVERLAY --><!-- UPDATING OVERLAY -->
 <div class="updating-overlay" id="updating-overlay">
   <div class="updating-box">
@@ -650,7 +618,6 @@
 </div>
 
 <script>
-const APP_VERSION='v2.5 — 2026-04-26';
 // ── CLOUDINARY ──
 const CL_CLOUD = 'dykkcxtp0';
 const CL_PRESET = 'lego_fotos';
@@ -812,7 +779,6 @@ async function setupUser(user) {
   const savedApi = localStorage.getItem(`lego_apiconfig_${uid}`) || localStorage.getItem('lego_apiconfig');
   if(savedApi){ try{ apiConfig={...apiConfig,...JSON.parse(savedApi)}; }catch(e){} }
   // Legacy migration
-  const legacyKey = localStorage.getItem(`lego_apikey_${uid}`);
   if(legacyKey && !apiConfig.rb.key){ apiConfig.rb.key=legacyKey; apiConfig.rb.enabled=true; saveApiConfig(); }
 
   // Load field sources — try uid-specific first, fall back to generic
@@ -1010,24 +976,6 @@ function toggleKeyVisibility(inputId, btn){
   }
 }
 
-function saveBsFunctionUrl(){
-  const val = document.getElementById('bs-fn-url').value.trim();
-  const st = document.getElementById('bs-fn-status');
-  if(!val){
-    localStorage.removeItem('lego_bs_function_url');
-    st.textContent='URL removido — a usar proxies públicos.'; st.style.color='var(--muted)';
-    toast('URL da função removido.');
-    return;
-  }
-  if(!val.startsWith('https://')){
-    st.textContent='✗ O URL deve começar com https://'; st.style.color='var(--red)'; return;
-  }
-  localStorage.setItem('lego_bs_function_url', val);
-  st.textContent='✓ URL guardado! A Brickset irá usar esta função como proxy.'; st.style.color='var(--green)';
-  toast('✓ URL da função guardado!');
-  // No reload needed - URL is read dynamically
-}
-
 function saveAppUrl(){
   const val = document.getElementById('app-url-input').value.trim();
   const statusEl = document.getElementById('app-url-status');
@@ -1050,12 +998,10 @@ function saveAppUrl(){
 }
 
 function loadSettingsUI(){
-  document.getElementById('app-version-display').textContent = APP_VERSION;
   // Brickset Function URL
   const bsFnInput = document.getElementById('bs-fn-url');
   const bsFnStatus = document.getElementById('bs-fn-status');
   if(bsFnInput){
-    const savedFn = localStorage.getItem('lego_bs_function_url');
     bsFnInput.value = savedFn || '';
     if(savedFn){ bsFnStatus.textContent='✓ Proxy configurado: ' + savedFn.slice(0,50)+'…'; bsFnStatus.style.color='var(--green)'; }
     else { bsFnStatus.textContent='Não configurado — a usar proxies públicos (menos fiável).'; bsFnStatus.style.color='var(--muted)'; }
@@ -1189,7 +1135,6 @@ function saveFieldSources(){
   toast('✓ Preferências guardadas!');
 }
 
-
 // ── API TEST ──
 async function testApi(api){
   const statusEl=document.getElementById('status-'+api);
@@ -1222,46 +1167,7 @@ async function testApi(api){
         statusEl.className = 'api-status err';
         return;
       }
-      if(false){ // skip old proxy test
-      const proxyNames=['Firebase Function','directo','corsproxy.io','allorigins','codetabs','thingproxy'];
-      const proxyResults=[];
-      const bsCheck=`https://brickset.com/api/v3.asmx/checkKey?apiKey=${encodeURIComponent(apiConfig.bs.key)}`;
-      const _fnUrl2 = localStorage.getItem('lego_bs_function_url')||'';
-      const _fnUrl = localStorage.getItem('lego_bs_function_url')||'';
-      const proxyFns=[
-        async()=>{if(!_fnUrl2)return null;const r=await fetch(`${_fnUrl2}?apiKey=${encodeURIComponent(apiConfig.bs.key)}&method=getSets&params=${encodeURIComponent(JSON.stringify({setNumber:'21051',pageSize:1}))}`);return r.ok?r.text():null;},
-        async()=>{const r=await fetch(bsCheck);return r.ok?r.text():null;},
-        async()=>{const r=await fetch('https://corsproxy.io/?'+encodeURIComponent(bsCheck));return r.ok?r.text():null;},
-        async()=>{const r=await fetch('https://api.allorigins.win/get?url='+encodeURIComponent(bsCheck));if(!r.ok)return null;const j=await r.json();return j?.contents||null;},
-        async()=>{const r=await fetch('https://api.codetabs.com/v1/proxy/?quest='+encodeURIComponent(bsCheck));return r.ok?r.text():null;},
-        async()=>{const r=await fetch('https://thingproxy.freeboard.io/fetch/'+bsCheck);return r.ok?r.text():null;},
-      ];
-      let keyOk=false; let workingProxy='';
-      for(let i=0;i<proxyFns.length;i++){
-        statusEl.textContent=`⏳ A testar proxy ${i+1}/5: ${proxyNames[i]}…`;
-        try{
-          const t=await Promise.race([proxyFns[i](),new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),8000))]);
-          const ok=!!(t&&(t.includes('"status":"valid"') || t.includes('"sets"') || t.includes('limit exceeded')));
-          proxyResults.push({name:proxyNames[i],ok,text:t?t.slice(0,80):'(sem resposta)'});
-          if(ok&&!keyOk){keyOk=true;workingProxy=proxyNames[i];}
-        }catch(e){proxyResults.push({name:proxyNames[i],ok:false,text:e.message});}
-      }
-      // Show proxy diagnostics
-      const diagRows=proxyResults.map(p=>`<div class="api-field-row"><span class="${p.ok?'api-field-ok':'api-field-empty'}">${p.ok?'✓':'✗'}</span><span style="font-weight:700;min-width:110px;display:inline-block">${p.name}</span><span style="font-size:10px;color:#888;word-break:break-all">${p.text}</span></div>`).join('');
-      fieldsEl.innerHTML='<div style="font-weight:700;margin-bottom:8px;font-size:11px;">📡 Diagnóstico de proxies CORS:</div>'+diagRows;
-      fieldsEl.classList.add('on');
-      if(!keyOk){
-        const limitHit = proxyResults.some(p=>p.text&&p.text.includes('limit exceeded'));
-        if(limitHit){
-          statusEl.textContent='⚠️ Limite diário da Brickset atingido.';
-          statusEl.className='api-status';
-        } else {
-          statusEl.textContent='✗ Proxies falharam — ver diagnóstico abaixo';
-          statusEl.className='api-status err';
-        }
-      } // end if(false)
-        return;
-      }
+
       statusEl.textContent=`✓ Chave válida! (proxy: ${workingProxy})`;statusEl.className='api-status ok';
       result=await lookupBrickset('21051');
     } else {
@@ -1430,65 +1336,6 @@ async function lookupRebrickable(num){
 // Set this after deploying your Firebase Function:
 // Firebase Console → Functions → bricksetProxy → copy the URL
 // Format: https://us-central1-YOUR-PROJECT.cloudfunctions.net/bricksetProxy
-// BRICKSET_FUNCTION_URL is read dynamically in fetchViaCorsProxy
-
-async function fetchViaCorsProxy(targetUrl, timeoutMs=12000){
-  const proxies = [];
-
-  // 1. Firebase Cloud Function (own proxy — most reliable, no Cloudflare WAF issues)
-  const BRICKSET_FUNCTION_URL = localStorage.getItem('lego_bs_function_url')||'';
-  if(BRICKSET_FUNCTION_URL){
-    proxies.push({ name:'Firebase Function', fn: async () => {
-      // Extract params from targetUrl and call our function
-      const u = new URL(targetUrl);
-      const apiKey = u.searchParams.get('apiKey');
-      const params = u.searchParams.get('params');
-      // Determine which method from the URL path
-      const method = u.pathname.split('/').pop();
-      const fnUrl = `${BRICKSET_FUNCTION_URL}?apiKey=${encodeURIComponent(apiKey)}&method=${method}&params=${encodeURIComponent(params||'{}')}`;
-      const r = await fetch(fnUrl);
-      return r.ok ? r.text() : null;
-    }});
-  }
-
-  // 2. Public CORS proxies as fallback
-  proxies.push(
-    { name:'corsproxy.io', fn: async () => {
-      const r = await fetch('https://corsproxy.io/?' + encodeURIComponent(targetUrl));
-      return r.ok ? r.text() : null;
-    }},
-    { name:'allorigins', fn: async () => {
-      const r = await fetch('https://api.allorigins.win/get?url=' + encodeURIComponent(targetUrl));
-      if(!r.ok) return null;
-      const j = await r.json();
-      return j?.contents || null;
-    }},
-    { name:'codetabs', fn: async () => {
-      const r = await fetch('https://api.codetabs.com/v1/proxy/?quest=' + encodeURIComponent(targetUrl));
-      return r.ok ? r.text() : null;
-    }},
-    { name:'thingproxy', fn: async () => {
-      const r = await fetch('https://thingproxy.freeboard.io/fetch/' + targetUrl);
-      return r.ok ? r.text() : null;
-    }}
-  );
-
-  for(const proxy of proxies){
-    try{
-      const text = await Promise.race([
-        proxy.fn(),
-        new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),timeoutMs))
-      ]);
-      if(text && text.includes('"status"')){
-        console.log(`[Brickset] proxy OK: ${proxy.name}`);
-        return text;
-      }
-    }catch(e){
-      console.log(`[Brickset] proxy fail (${proxy.name}):`, e.message);
-    }
-  }
-  return null;
-}
 
 // ── BRICKSET CSV DATABASE ──
 // CSV loaded once from GitHub and cached in memory
@@ -1651,14 +1498,6 @@ async function checkBricksetKey(){
   return db_csv !== null;
 }
 
-
-async function checkBricksetKey(){
-  if(!apiConfig.bs.key) return false;
-  const targetUrl = `https://brickset.com/api/v3.asmx/checkKey?apiKey=${encodeURIComponent(apiConfig.bs.key)}`;
-  const text = await fetchViaCorsProxy(targetUrl, 8000);
-  return text && text.includes('"valid"');
-}
-
 async function lookupBricklink(num){
   if(!apiConfig.bl.enabled || !apiConfig.bl.consumerKey) return null;
   const setNum = num.replace(/-\d+$/,'') + '-1';
@@ -1751,48 +1590,11 @@ async function lookupSet(num){
   };
 }
 
-// ── CONFIRM MODAL ──
-function showConfirm({icon='⚠️', title, msg, okLabel='Continuar', okClass='', cancelLabel='Cancelar'}){
-  return new Promise(resolve=>{
-    document.getElementById('confirm-icon').textContent=icon;
-    document.getElementById('confirm-title').textContent=title;
-    document.getElementById('confirm-msg').textContent=msg;
-    document.getElementById('confirm-ok').textContent=okLabel;
-    document.getElementById('confirm-cancel').textContent=cancelLabel;
-    const modal=document.getElementById('confirm-modal');
-    modal.classList.add('on');
-    const ok=document.getElementById('confirm-ok');
-    const cancel=document.getElementById('confirm-cancel');
-    const cleanup=()=>{ modal.classList.remove('on'); ok.onclick=null; cancel.onclick=null; };
-    ok.onclick=()=>{ cleanup(); resolve(true); };
-    cancel.onclick=()=>{ cleanup(); resolve(false); };
-  });
-}
-
 async function addSet(){
   const num=document.getElementById('set-input').value.trim(); if(!num) return;
-  const isWishTab=currentTab==='wish';
-  const list=isWishTab?wishlist:collection;
-  const listName=isWishTab?'wishlist':'collection';
-  const otherList=isWishTab?collection:wishlist;
-
-  // Already in same list?
-  if(list.find(s=>s.set_num?.replace(/-\d+$/,'')===num.replace(/-\d+$/,''))){
-    toast('Já está na lista!',false); return;
-  }
-
-  // Adding to wishlist but already in collection?
-  if(isWishTab && otherList.find(s=>s.set_num?.replace(/-\d+$/,'')===num.replace(/-\d+$/,''))){
-    const go=await showConfirm({
-      icon:'🧱',
-      title:'Já tens este set!',
-      msg:'Este set já existe na tua coleção. Queres mesmo adicioná-lo também à wishlist?',
-      okLabel:'Adicionar mesmo assim',
-      cancelLabel:'Cancelar'
-    });
-    if(!go) return;
-  }
-
+  const list=currentTab==='wish'?wishlist:collection;
+  const listName=currentTab==='wish'?'wishlist':'collection';
+  if(list.find(s=>s.set_num?.replace(/-\d+$/,'')===num.replace(/-\d+$/,''))){toast('Já está na lista!',false);return;}
   const hasApi=apiConfig.rb.key||apiConfig.bs.key||apiConfig.bl.consumerKey;
   if(!hasApi){toast('Configura pelo menos uma API nas Definições.',false);switchTab('settings');return;}
   setLoading(true);
@@ -1809,26 +1611,6 @@ async function addSet(){
       document.getElementById('hint').classList.remove('on');
       renderAll();
       toast(`✓ "${data.name}" adicionado!`);
-
-      // Added to collection — check if it's in wishlist
-      if(!isWishTab){
-        const wishIdx=wishlist.findIndex(s=>s.set_num?.replace(/-\d+$/,'')===item.set_num?.replace(/-\d+$/,''));
-        if(wishIdx!==-1){
-          const remove=await showConfirm({
-            icon:'⭐',
-            title:'Está na wishlist!',
-            msg:`"${item.name}" está na tua wishlist. Queres removê-lo agora que o adicionaste à coleção?`,
-            okLabel:'Remover da wishlist',
-            cancelLabel:'Manter'
-          });
-          if(remove){
-            const wItem=wishlist.splice(wishIdx,1)[0];
-            await fsDeleteItem('wishlist',wItem);
-            renderAll();
-            toast('Removido da wishlist.',false);
-          }
-        }
-      }
     }
   }catch(e){
     apiFeedback('❌ Erro de ligação. Verifica as APIs nas Definições.','err');
@@ -2169,18 +1951,11 @@ function renderCol(){
   const tp=collection.reduce((a,s)=>a+(s.num_parts||0),0);
   // Only sum EUR-currency sets (currency===€ or DE, or not set defaulting to €)
   const isEur=item=>(item.currency||'€')==='€'||(item.currency||'€')==='DE'||(item.currency||'€')==='EUR';
-  // Official price sum: use manual price_official if set, otherwise fallback to price_retail.DE
-  const tofic=collection.reduce((a,s)=>{
-    if(!isEur(s)) return a;
-    if(s.price_official!=null) return a+parseFloat(s.price_official);
-    const r=s.price_retail||{};
-    if(r.DE!=null) return a+parseFloat(r.DE);
-    return a;
-  },0);
+  const tp2=collection.reduce((a,s)=>a+(isEur(s)&&s.price_paid!=null?s.price_paid:0),0);
   const te=collection.reduce((a,s)=>a+(isEur(s)&&s.price_estimated!=null?s.price_estimated:0),0);
   document.getElementById('s-sets').textContent=collection.length;
   document.getElementById('s-pcs').textContent=tp.toLocaleString('pt-PT');
-  document.getElementById('s-ofic').textContent=tofic>0?tofic.toLocaleString('pt-PT',{maximumFractionDigits:0})+'€':'—';
+  document.getElementById('s-paid').textContent=tp2>0?tp2.toLocaleString('pt-PT',{maximumFractionDigits:0})+'€':'—';
   document.getElementById('s-estimated').textContent=te>0?te.toLocaleString('pt-PT',{maximumFractionDigits:0})+'€':'—';
   document.getElementById('col-sbar').classList.toggle('on',collection.length>0);
   document.getElementById('col-tb').classList.toggle('on',collection.length>0);
@@ -2197,16 +1972,8 @@ function renderWish(){
   const srt=document.getElementById('wish-ss').value;
   const list=sorted(wishlist,srt,q);
   const tp=wishlist.reduce((a,s)=>a+(s.num_parts||0),0);
-  const isEur=item=>(item.currency||'€')==='€'||(item.currency||'€')==='DE'||(item.currency||'€')==='EUR';
-  // Official sum: manual first, fallback to retail.DE (only EUR sets)
-  const to=wishlist.reduce((a,s)=>{
-    if(!isEur(s)) return a;
-    if(s.price_official!=null) return a+parseFloat(s.price_official);
-    const r=s.price_retail||{};
-    if(r.DE!=null) return a+parseFloat(r.DE);
-    return a;
-  },0);
-  const te=wishlist.reduce((a,s)=>a+(isEur(s)&&s.price_estimated!=null?parseFloat(s.price_estimated):0),0);
+  const to=wishlist.reduce((a,s)=>a+(s.price_official||0),0);
+  const te=wishlist.reduce((a,s)=>a+(s.price_estimated||0),0);
   document.getElementById('w-sets').textContent=wishlist.length;
   document.getElementById('w-pcs').textContent=tp.toLocaleString('pt-PT');
   document.getElementById('w-ofic').textContent=to>0?to.toLocaleString('pt-PT',{maximumFractionDigits:0})+'€':'—';
@@ -2466,7 +2233,6 @@ function toast(msg,ok=true){
     <button class="pw-cancel" onclick="closeChangePwModal()">Cancelar</button>
   </div>
 </div>
-
 
 </body>
 </html>
