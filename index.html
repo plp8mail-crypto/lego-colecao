@@ -779,6 +779,7 @@ async function setupUser(user) {
   const savedApi = localStorage.getItem(`lego_apiconfig_${uid}`) || localStorage.getItem('lego_apiconfig');
   if(savedApi){ try{ apiConfig={...apiConfig,...JSON.parse(savedApi)}; }catch(e){} }
   // Legacy migration
+  const legacyKey = localStorage.getItem(`lego_apikey_${uid}`);
   if(legacyKey && !apiConfig.rb.key){ apiConfig.rb.key=legacyKey; apiConfig.rb.enabled=true; saveApiConfig(); }
 
   // Load field sources — try uid-specific first, fall back to generic
